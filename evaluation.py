@@ -1,9 +1,29 @@
 import os
 import re
+import csv
 from collections import defaultdict
 
+import torch
 import numpy as np
 from tqdm import tqdm
+
+from qa_utils.misc import Logger
+
+
+def read_args(working_dir):
+    """Read the arguments that were saved during training.
+    
+    Arguments:
+        working_dir {str} -- Working directory
+    
+    Returns:
+        dict -- A dict that maps arguments to their values
+    """
+    args = {}
+    with open(os.path.join(working_dir, 'args.csv')) as fp:
+        for arg, value in csv.reader(fp):
+            args[arg] = value
+    return args
 
 
 def get_checkpoints(directory, pattern):
@@ -84,3 +104,27 @@ def evaluate(model, dataloader, k):
         all_labels.append(label)
     map_, mrr = get_metrics(all_scores, all_labels, k)
     return map_, mrr
+
+
+def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k):
+    """Evaluate each checkpoint in the working directory agains dev- and testset. Save the results in a log file.
+    
+    Arguments:
+        model {torch.nn.Module} -- The model to test
+        working_dir {str} -- The working directory
+        dev_dl {torch.utils.data.DataLoader} -- Dev dataloader
+        test_dl {torch.utils.data.DataLoader} -- Test dataloader
+        mrr_k {int} -- Compute MRR@k
+    """
+    eval_file = os.path.join(working_dir, 'eval.csv')
+    logger = Logger(eval_file, ['ckpt', 'dev_map', 'dev_mrr', 'test_map', 'test_mrr'])
+    model.eval()
+    for ckpt in get_checkpoints(os.path.join(working_dir, 'ckpt'), r'weights_(\d+).pt'):
+        print('processing {}...'.format(ckpt))
+        state = torch.load(ckpt)
+        model.module.load_state_dict(state['state_dict'])
+        with torch.no_grad():
+            dev_metrics = evaluate(model, dev_dl, mrr_k)
+            test_metrics = evaluate(model, test_dl, mrr_k)
+        row = [ckpt] + list(dev_metrics) + list(test_metrics)
+        logger.log(row)
