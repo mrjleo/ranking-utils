@@ -7,7 +7,7 @@ from tqdm import tqdm
 from qa_utils.misc import Logger
 
 
-def train_model_bce(model, train_dl, optimizer, args, device='cpu'):
+def train_model_bce(model, train_dl, optimizer, args, device):
     """Train a model using binary cross entropy. Save the model after each epoch and log the loss in
     a file.
 
@@ -16,9 +16,7 @@ def train_model_bce(model, train_dl, optimizer, args, device='cpu'):
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
-
-    Keyword Arguments:
-        device {str} -- Device to train on (default: {'cpu'})
+        device {torch.device} -- Device to train on
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
@@ -39,7 +37,7 @@ def train_model_bce(model, train_dl, optimizer, args, device='cpu'):
         loss_sum = 0
         optimizer.zero_grad()
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
-            out = model(b_x)
+            out = model(b_x.to(device))
             loss = criterion(out, b_y.to(device)) / args.accumulate_batches
             loss.backward()
             if (i + 1) % args.accumulate_batches == 0:

@@ -79,13 +79,14 @@ def get_metrics(scores_list, labels_list, k):
     return np.mean(aps), np.mean(rrs)
 
 
-def evaluate(model, dataloader, k):
+def evaluate(model, dataloader, k, device):
     """Evaluate the model on a testset.
     
     Arguments:
         model {torch.nn.Module} -- Classifier model
         dataloader {torch.utils.data.DataLoader} -- Testset DataLoader
         k {int} -- Calculate MRR@k
+        device {torch.device} -- Device to evaluate on
     
     Returns:
         tuple[float, float] -- A tuple containing MAP and MRR@k
@@ -93,7 +94,7 @@ def evaluate(model, dataloader, k):
     result = defaultdict(lambda: ([], []))
     for batch in tqdm(dataloader):
         q_ids, inputs, labels = batch
-        predictions = model(inputs).cpu().detach()
+        predictions = model(inputs.to(device)).cpu().detach()
         for q_id, prediction, label in zip(q_ids.numpy(), predictions.numpy(), labels.numpy()):
             result[q_id][0].append(prediction[0])
             result[q_id][1].append(label)
@@ -106,7 +107,7 @@ def evaluate(model, dataloader, k):
     return map_, mrr
 
 
-def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k):
+def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k, device):
     """Evaluate each checkpoint in the working directory agains dev- and testset. Save the results in a log file.
     
     Arguments:
@@ -115,6 +116,7 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k):
         dev_dl {torch.utils.data.DataLoader} -- Dev dataloader
         test_dl {torch.utils.data.DataLoader} -- Test dataloader
         mrr_k {int} -- Compute MRR@k
+        device {torch.device} -- Device to evaluate on
     """
     eval_file = os.path.join(working_dir, 'eval.csv')
     logger = Logger(eval_file, ['ckpt', 'dev_map', 'dev_mrr', 'test_map', 'test_mrr'])
@@ -124,7 +126,7 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k):
         state = torch.load(ckpt)
         model.module.load_state_dict(state['state_dict'])
         with torch.no_grad():
-            dev_metrics = evaluate(model, dev_dl, mrr_k)
-            test_metrics = evaluate(model, test_dl, mrr_k)
+            dev_metrics = evaluate(model, dev_dl, mrr_k, device)
+            test_metrics = evaluate(model, test_dl, mrr_k, device)
         row = [ckpt] + list(dev_metrics) + list(test_metrics)
         logger.log(row)
