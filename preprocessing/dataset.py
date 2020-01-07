@@ -54,6 +54,24 @@ class Dataset(abc.ABC):
         """
         return Testset(self.test_queries, self.docs, self.test_set)
 
+    def transform_queries(self, f):
+        """Apply a function to all queries.
+        
+        Arguments:
+            f {<class 'function'>} -- The function to apply
+        """
+        for q_id in self.queries:
+            self.queries[q_id] = f(self.queries[q_id])
+
+    def transform_docs(self, f):
+        """Apply a function to all documents.
+        
+        Arguments:
+            f {<class 'function'>} -- The function to apply
+        """
+        for doc_id in self.docs:
+            self.docs[doc_id] = f(self.docs[doc_id])
+
     @staticmethod
     @abc.abstractmethod
     def add_subparser(subparsers):
