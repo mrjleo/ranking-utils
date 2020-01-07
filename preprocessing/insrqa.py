@@ -1,7 +1,6 @@
 import os
 import csv
 import gzip
-import argparse
 from collections import defaultdict
 
 from tqdm import tqdm

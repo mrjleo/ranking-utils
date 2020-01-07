@@ -1,7 +1,6 @@
 import os
 import csv
 import pickle
-import argparse
 from collections import defaultdict
 
 from tqdm import tqdm
