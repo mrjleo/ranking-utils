@@ -80,7 +80,7 @@ class MSMARCO(Dataset):
         dev_queries_file = os.path.join(self.args.MSM_DIR, 'queries.dev.tsv')
         dev_queries = read_collection(dev_queries_file)
 
-        queries = train_queries
+        queries = train_queries.copy()
         queries.update(dev_queries)
         train_q_ids = train_queries.keys()
 
