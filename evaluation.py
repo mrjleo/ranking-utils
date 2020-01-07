@@ -12,10 +12,10 @@ from qa_utils.misc import Logger
 
 def read_args(working_dir):
     """Read the arguments that were saved during training.
-    
+
     Arguments:
         working_dir {str} -- Working directory
-    
+
     Returns:
         dict -- A dict that maps arguments to their values
     """
@@ -28,11 +28,11 @@ def read_args(working_dir):
 
 def get_checkpoints(directory, pattern):
     """List all model checkpoints.
-    
+
     Arguments:
         directory {str} -- Directory that contains checkpoint files
         pattern {str} -- Regex pattern to match the files
-    
+
     Returns:
         list[str] -- A sorted list of absolute paths to all checkpoint files
     """
@@ -44,12 +44,12 @@ def get_checkpoints(directory, pattern):
 
 def get_metrics(scores_list, labels_list, k):
     """Calculate MAP and MRR@k scores.
-    
+
     Arguments:
         scores_list {list[list[float]]} -- The scores
         labels_list {list[list[int]]} -- The relevance labels
         k {int} -- Calculate MRR@k
-    
+
     Returns:
         tuple[float, float] -- A tuple containing MAP and MRR@k
     """
@@ -81,13 +81,13 @@ def get_metrics(scores_list, labels_list, k):
 
 def evaluate(model, dataloader, k, device):
     """Evaluate the model on a testset.
-    
+
     Arguments:
         model {torch.nn.Module} -- Classifier model
         dataloader {torch.utils.data.DataLoader} -- Testset DataLoader
         k {int} -- Calculate MRR@k
         device {torch.device} -- Device to evaluate on
-    
+
     Returns:
         tuple[float, float] -- A tuple containing MAP and MRR@k
     """
@@ -107,15 +107,15 @@ def evaluate(model, dataloader, k, device):
     return map_, mrr
 
 
-def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k, device):
+def evaluate_all(model, working_dir, dev_dl, test_dl, k, device):
     """Evaluate each checkpoint in the working directory agains dev- and testset. Save the results in a log file.
-    
+
     Arguments:
         model {torch.nn.Module} -- The model to test
         working_dir {str} -- The working directory
         dev_dl {torch.utils.data.DataLoader} -- Dev dataloader
         test_dl {torch.utils.data.DataLoader} -- Test dataloader
-        mrr_k {int} -- Compute MRR@k
+        k {int} -- Compute MRR@k
         device {torch.device} -- Device to evaluate on
     """
     eval_file = os.path.join(working_dir, 'eval.csv')
@@ -126,7 +126,7 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, mrr_k, device):
         state = torch.load(ckpt)
         model.module.load_state_dict(state['state_dict'])
         with torch.no_grad():
-            dev_metrics = evaluate(model, dev_dl, mrr_k, device)
-            test_metrics = evaluate(model, test_dl, mrr_k, device)
+            dev_metrics = evaluate(model, dev_dl, k, device)
+            test_metrics = evaluate(model, test_dl, k, device)
         row = [ckpt] + list(dev_metrics) + list(test_metrics)
         logger.log(row)

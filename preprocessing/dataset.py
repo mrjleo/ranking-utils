@@ -4,20 +4,23 @@ import random
 
 
 class Dataset(abc.ABC):
-    """Abstract base class for datasets."""    
+    """Abstract base class for datasets.
+
+    Arguments:
+        args {argparse.Namespace} -- The command line arguments
+    """
     def __init__(self, args):
         self.args = args
-        self.queries, self.docs, self.qrels, train_q_ids, self.dev_set, self.test_set = self._read_dataset()
-        self.train_queries = {q_id: self.queries[q_id] for q_id in train_q_ids}
-        self.dev_queries = {q_id: self.queries[q_id] for q_id in self.dev_set}
-        self.test_queries = {q_id: self.queries[q_id] for q_id in self.test_set}
+        self.queries, self.docs, self.qrels, self.train_q_ids, self.dev_set, self.test_set = \
+            self._read_dataset()
 
     @abc.abstractmethod
     def _read_dataset(self):
         """Read all dataset files.
 
         Returns:
-            tuple[dict, dict, dict, set, dict, dict] -- a tuple containing:
+            tuple[dict[int, str], dict[int, str], dict[int, set[int]], set[int],
+                  dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
                 * a mapping of query IDs to relevant document IDs
@@ -34,7 +37,8 @@ class Dataset(abc.ABC):
         Returns:
             Trainset -- The trainset
         """
-        return Trainset(self.train_queries, self.docs, self.qrels, self.args.num_neg_examples)
+        return Trainset(self.queries, self.docs, self.train_q_ids, self.qrels,
+                        self.args.num_neg_examples)
 
     @property
     def devset(self):
@@ -43,7 +47,7 @@ class Dataset(abc.ABC):
         Returns:
             Testset -- The devset
         """
-        return Testset(self.dev_queries, self.docs, self.dev_set)
+        return Testset(self.queries, self.docs, self.dev_set)
 
     @property
     def testset(self):
@@ -52,22 +56,22 @@ class Dataset(abc.ABC):
         Returns:
             Testset -- The testset
         """
-        return Testset(self.test_queries, self.docs, self.test_set)
+        return Testset(self.queries, self.docs, self.test_set)
 
     def transform_queries(self, f):
         """Apply a function to all queries.
-        
+
         Arguments:
-            f {<class 'function'>} -- The function to apply
+            f {function} -- The function to apply
         """
         for q_id in self.queries:
             self.queries[q_id] = f(self.queries[q_id])
 
     def transform_docs(self, f):
         """Apply a function to all documents.
-        
+
         Arguments:
-            f {<class 'function'>} -- The function to apply
+            f {function} -- The function to apply
         """
         for doc_id in self.docs:
             self.docs[doc_id] = f(self.docs[doc_id])
@@ -75,25 +79,45 @@ class Dataset(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def add_subparser(subparsers):
-        """Add a dataset-specific subparser with all required arguments."""
+        """Add a dataset-specific subparser with all required arguments.
+
+        Arguments:
+            subparsers {argparse._SubParsersAction} -- The subparsers object to add the subparser to
+        """
         pass
 
 
-class Trainset(object):   
-    def __init__(self, train_queries, docs, train_qrels, num_neg_examples):
-        self.train_queries = train_queries
+class Trainset(object):
+    """A trainset iterator.
+
+    Arguments:
+        queries {dict[int, str]} -- The queries
+        docs {dict[int, str]} -- The documents
+        train_q_ids {list[int]} -- The query IDs in the trainset
+        train_qrels {dict[int, list[int]]} -- Relevant documents for each query
+        num_neg_examples {int} -- Number of negative examples for each positive one
+
+    Yields:
+        tuple[str, str, list[str]] -- A tuple containing
+            * a query
+            * a relevant document
+            * a list of irrelevant documents
+    """
+    def __init__(self, queries, docs, train_q_ids, train_qrels, num_neg_examples):
+        self.queries = queries
         self.docs = docs
+        self.train_q_ids = train_q_ids
         self.train_qrels = train_qrels
         self.num_neg_examples = num_neg_examples
 
         # enumerate all positive (query, document) pairs
         self.pos_pairs = []
-        for q_id in train_queries:
+        for q_id in train_q_ids:
             # empty queries or documents will cause errors
-            if len(train_queries.get(q_id, [])) == 0:
+            if len(queries[q_id]) == 0:
                 continue
             for doc_id in train_qrels[q_id]:
-                if len(docs.get(doc_id, [])) == 0:
+                if len(docs[doc_id]) == 0:
                     continue
                 self.pos_pairs.append((q_id, doc_id))
 
@@ -123,14 +147,14 @@ class Trainset(object):
         """Yield all training examples.
 
         Yields:
-            tuple[str, str, list] -- a tuple containing
+            tuple[str, str, list[str]] -- A tuple containing
                 * a query
                 * a relevant document
                 * a list of irrelevant documents
         """
         for q_id, pos_doc_id in self.pos_pairs:
             neg_docs = [self.docs[neg_doc_id] for neg_doc_id in self._sample_negatives(q_id)]
-            yield self.train_queries[q_id], self.docs[pos_doc_id], neg_docs
+            yield self.queries[q_id], self.docs[pos_doc_id], neg_docs
 
     def __len__(self):
         return len(self.pos_pairs)
@@ -140,8 +164,18 @@ class Trainset(object):
 
 
 class Testset(object):
-    def __init__(self, test_queries, docs, test_set):
-        self.test_queries = test_queries
+    """A dev-/testset iterator.
+
+    Arguments:
+        queries {dict[int, str]} -- The queries
+        docs {dict[int, str]} -- The documents
+        test_set {dict[int, list[tuple[int, int]]]} -- A map of query IDs to document IDs and labels
+
+    Yields:
+        tuple[int, str, str, int] -- A query ID, a query, a document and a binary label
+    """
+    def __init__(self, queries, docs, test_set):
+        self.queries = queries
         self.docs = docs
         self.test_set = test_set
 
@@ -149,15 +183,15 @@ class Testset(object):
         """Yield all test examples.
 
         Yields:
-            tuple[int, str, str, int] -- a query ID, a query, a document and a binary label
+            tuple[int, str, str, int] -- A query ID, a query, a document and a binary label
         """
         for q_id, doc_ids in self.test_set.items():
             # empty/nonexistent queries or documents will cause errors
-            if len(self.test_queries.get(q_id, [])) == 0:
+            if len(self.queries[q_id]) == 0:
                 continue
             for doc_id, label in doc_ids:
                 if len(self.docs[doc_id]) > 0:
-                    yield q_id, self.test_queries[q_id], self.docs[doc_id], label
+                    yield q_id, self.queries[q_id], self.docs[doc_id], label
 
     def __len__(self):
         return sum(map(len, self.test_set.values()))

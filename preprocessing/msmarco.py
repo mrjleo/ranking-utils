@@ -53,8 +53,8 @@ def read_dev_set(dev_set_file, qrels_file):
 
 
 class MSMARCO(Dataset):
-    """MS MARCO passage ranking dataset class."""    
-    def _read_dataset(self):    
+    """MS MARCO passage ranking dataset class."""
+    def _read_dataset(self):
         """Read all dataset files.
 
         Returns:

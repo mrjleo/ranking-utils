@@ -15,8 +15,8 @@ def decode(idx_list, vocab):
 
 
 class InsuranceQA(Dataset):
-    """InsuranceQA dataset class."""    
-    def _read_dataset(self):    
+    """InsuranceQA dataset class."""
+    def _read_dataset(self):
         """Read all dataset files.
 
         Returns:
@@ -82,7 +82,7 @@ class InsuranceQA(Dataset):
                 for pos_doc_id in pos_doc_ids:
                     dev_set[q_id].append((pos_doc_id, 1))
                 for neg_doc_id in neg_doc_ids:
-                    dev_set[q_id].append((neg_doc_id, 0)) 
+                    dev_set[q_id].append((neg_doc_id, 0))
 
         print('processing {}...'.format(test_file), flush=True)
         test_set = defaultdict(list)
@@ -102,7 +102,7 @@ class InsuranceQA(Dataset):
                 for neg_doc_id in neg_doc_ids:
                     test_set[q_id].append((neg_doc_id, 0))
 
-        return queries, docs, qrels, train_q_ids, dev_set, test_set 
+        return queries, docs, qrels, train_q_ids, dev_set, test_set
 
 
     @staticmethod

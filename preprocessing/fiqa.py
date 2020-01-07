@@ -11,8 +11,8 @@ from qa_utils.preprocessing.dataset import Dataset
 
 
 class FiQA(Dataset):
-    """FiQA dataset class."""    
-    def _read_dataset(self):    
+    """FiQA dataset class."""
+    def _read_dataset(self):
         """Read all dataset files.
 
         Returns:
