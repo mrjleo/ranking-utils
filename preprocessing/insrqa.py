@@ -1,7 +1,6 @@
 import os
 import csv
 import gzip
-import pickle
 import argparse
 from collections import defaultdict
 
