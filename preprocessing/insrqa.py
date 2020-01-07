@@ -11,7 +11,7 @@ from qa_utils.preprocessing.dataset import Dataset
 
 
 def decode(idx_list, vocab):
-    return ' '.join([vocab[idx].lower() for idx in idx_list])
+    return ' '.join(map(vocab.get, idx_list))
 
 
 class InsuranceQA(Dataset):
