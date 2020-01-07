@@ -2,6 +2,8 @@ import os
 import abc
 import random
 
+from tqdm import tqdm
+
 
 class Dataset(abc.ABC):
     """Abstract base class for datasets.
@@ -64,7 +66,7 @@ class Dataset(abc.ABC):
         Arguments:
             f {function} -- The function to apply
         """
-        for q_id in self.queries:
+        for q_id in tqdm(self.queries):
             self.queries[q_id] = f(self.queries[q_id])
 
     def transform_docs(self, f):
@@ -73,7 +75,7 @@ class Dataset(abc.ABC):
         Arguments:
             f {function} -- The function to apply
         """
-        for doc_id in self.docs:
+        for doc_id in tqdm(self.docs):
             self.docs[doc_id] = f(self.docs[doc_id])
 
     @staticmethod
