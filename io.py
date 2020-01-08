@@ -1,5 +1,7 @@
 import pickle
 
+import torch
+
 
 def load_pkl_file(filepath):
     """Load the contents of a pickle file.
@@ -36,3 +38,20 @@ def batch_to_device(batch, device):
 
     """
     return [y.to(device) for y in batch]
+
+
+def get_cuda_device():
+    """Get the pytorch cuda device if available.
+
+    Returns: A cuda device if available, cpu device else.
+
+    """
+    if torch.cuda.is_available():
+        # cuda:0 will still use all GPUs
+        device = torch.device('cuda:0')
+        dev_name = torch.cuda.get_device_name(torch.cuda.current_device())
+        print('using {} device(s): "{}"'.format(torch.cuda.device_count(), dev_name))
+    else:
+        device = torch.device('cpu')
+
+    return device
