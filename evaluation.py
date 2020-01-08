@@ -7,6 +7,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
+from qa_utils.io import batch_to_device
 from qa_utils.misc import Logger
 
 
@@ -53,6 +54,7 @@ def get_metrics(scores_list, labels_list, k):
     Returns:
         tuple[float, float] -- A tuple containing MAP and MRR@k
     """
+
     def _ap(pred, gt):
         score = 0.0
         num_hits = 0.0
@@ -79,7 +81,7 @@ def get_metrics(scores_list, labels_list, k):
     return np.mean(aps), np.mean(rrs)
 
 
-def evaluate(model, dataloader, k, device):
+def evaluate(model, dataloader, k, device, multi_input_model=False):
     """Evaluate the model on a testset.
 
     Arguments:
@@ -94,7 +96,11 @@ def evaluate(model, dataloader, k, device):
     result = defaultdict(lambda: ([], []))
     for batch in tqdm(dataloader):
         q_ids, inputs, labels = batch
-        predictions = model(inputs.to(device)).cpu().detach()
+        if multi_input_model:
+            inputs = batch_to_device(inputs, device)
+            predictions = model(*inputs).cpu().detach()
+        else:
+            predictions = model(inputs.to(device)).cpu().detach()
         for q_id, prediction, label in zip(q_ids.numpy(), predictions.numpy(), labels.numpy()):
             result[q_id][0].append(prediction[0])
             result[q_id][1].append(label)
@@ -107,7 +113,7 @@ def evaluate(model, dataloader, k, device):
     return map_, mrr
 
 
-def evaluate_all(model, working_dir, dev_dl, test_dl, k, device):
+def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, multi_input_model=False):
     """Evaluate each checkpoint in the working directory agains dev- and testset. Save the results in a log file.
 
     Arguments:
@@ -126,7 +132,7 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, k, device):
         state = torch.load(ckpt)
         model.module.load_state_dict(state['state_dict'])
         with torch.no_grad():
-            dev_metrics = evaluate(model, dev_dl, k, device)
-            test_metrics = evaluate(model, test_dl, k, device)
+            dev_metrics = evaluate(model, dev_dl, k, device, multi_input_model)
+            test_metrics = evaluate(model, test_dl, k, device, multi_input_model)
         row = [ckpt] + list(dev_metrics) + list(test_metrics)
         logger.log(row)
