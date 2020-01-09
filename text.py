@@ -23,7 +23,7 @@ class Tokenizer(ABC):
         """
 
 
-def build_vocab(collection, tokenizer, special_tokens=('<UNK>', '<PAD>', '<EOS>', '<START>'),
+def build_vocab(collection, tokenizer, special_tokens=('<PAD>', '<UNK>', '<START>', '<EOS>'),
                 max_vocab_size=None):
     """Build a vocabulary from a collection of strings.
 
@@ -93,7 +93,8 @@ def compute_idfs(vocab, documents, tokenizer):
     with Pool(processes=None) as p:
         for bow_doc in tqdm(p.imap(func, documents, chunksize=1024), total=n_docs):
             for word in bow_doc:
-                dfs[word] += 1
+                if word in vocab:
+                    dfs[word] += 1
 
     def _idf(term_freq):
         return np.log(n_docs / (term_freq + 1)) / np.log(n_docs)
