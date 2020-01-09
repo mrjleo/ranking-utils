@@ -114,7 +114,9 @@ def evaluate(model, dataloader, k, device, multi_input_model=False):
 
 
 def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, multi_input_model=False):
-    """Evaluate each checkpoint in the working directory agains dev- and testset. Save the results in a log file.
+    """Evaluate each checkpoint in the working directory against the devset. Afterwards, evaluate
+    the checkpoint with the highest dev MMR against the testset. The results are saved in a log
+    file.
 
     Arguments:
         model {torch.nn.Module} -- The model to test
@@ -125,14 +127,24 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, multi_input_mod
         device {torch.device} -- Device to evaluate on
     """
     eval_file = os.path.join(working_dir, 'eval.csv')
-    logger = Logger(eval_file, ['ckpt', 'dev_map', 'dev_mrr', 'test_map', 'test_mrr'])
+    logger = Logger(eval_file, ['ckpt', 'dataset', 'map', 'mrr'])
+    best_dev_mrr = 0
+    best_ckpt = None
     model.eval()
     for ckpt in get_checkpoints(os.path.join(working_dir, 'ckpt'), r'weights_(\d+).pt'):
-        print('processing {}...'.format(ckpt))
+        print('[dev] processing {}...'.format(ckpt))
         state = torch.load(ckpt)
         model.module.load_state_dict(state['state_dict'])
         with torch.no_grad():
-            dev_metrics = evaluate(model, dev_dl, k, device, multi_input_model)
-            test_metrics = evaluate(model, test_dl, k, device, multi_input_model)
-        row = [ckpt] + list(dev_metrics) + list(test_metrics)
-        logger.log(row)
+            dev_map, dev_mrr = evaluate(model, dev_dl, k, device, multi_input_model)
+        logger.log([ckpt, 'dev', dev_map, dev_mrr])
+        if dev_mrr >= best_dev_mrr:
+            best_dev_mrr = dev_mrr
+            best_ckpt = ckpt
+
+    print('[test] processing {}...'.format(best_ckpt))
+    state = torch.load(best_ckpt)
+    model.module.load_state_dict(state['state_dict'])
+    with torch.no_grad():
+        test_map, test_mrr = evaluate(model, test_dl, k, device, multi_input_model)
+    logger.log([ckpt, 'test', test_map, test_mrr])
