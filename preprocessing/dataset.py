@@ -143,14 +143,14 @@ class Trainset(object):
         """
 
         rels = self.train_qrels[q_id]
-        sampled_docs = []
+        sampled_docs = set()
 
-        for doc_id in range(self.num_neg_examples):
+        for _ in range(self.num_neg_examples):
             sampled_id = random.choice(self.neg_sample_doc_ids)
             # redo sampling if relevant to the query or if we have already sampled it
             while sampled_id in rels or sampled_id in sampled_docs:
                 sampled_id = random.choice(self.neg_sample_doc_ids)
-            sampled_docs.append(sampled_id)
+            sampled_docs.add(sampled_id)
 
         return sampled_docs
 
