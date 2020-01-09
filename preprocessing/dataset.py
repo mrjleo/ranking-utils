@@ -11,6 +11,7 @@ class Dataset(abc.ABC):
     Arguments:
         args {argparse.Namespace} -- The command line arguments
     """
+
     def __init__(self, args):
         self.args = args
         self.queries, self.docs, self.qrels, self.train_q_ids, self.dev_set, self.test_set = \
@@ -105,6 +106,7 @@ class Trainset(object):
             * a relevant document
             * a list of irrelevant documents
     """
+
     def __init__(self, queries, docs, train_q_ids, train_qrels, num_neg_examples):
         self.queries = queries
         self.docs = docs
@@ -128,6 +130,7 @@ class Trainset(object):
         for doc_id, doc in docs.items():
             if len(doc) > 0:
                 self.neg_sample_doc_ids.add(doc_id)
+        self.neg_sample_doc_ids = list(self.neg_sample_doc_ids)
 
     def _sample_negatives(self, q_id):
         """Sample a number of negative/irrelevant documents for a query.
@@ -138,12 +141,18 @@ class Trainset(object):
         Returns:
             list[int] -- A list of irrelevant document IDs
         """
-        population = self.neg_sample_doc_ids.copy()
-        # the IDs of the docs that are relevant for this query (we can't use these as negatives)
-        for doc_id in self.train_qrels[q_id]:
-            if doc_id in population:
-                population.remove(doc_id)
-        return random.sample(population, self.num_neg_examples)
+
+        rels = self.train_qrels[q_id]
+        sampled_docs = []
+
+        for doc_id in range(self.num_neg_examples):
+            sampled_id = random.choice(self.neg_sample_doc_ids)
+            # redo sampling if relevant to the query or if we have already sampled it
+            while sampled_id in rels or sampled_id in sampled_docs:
+                sampled_id = random.choice(self.neg_sample_doc_ids)
+            sampled_docs.append(sampled_id)
+
+        return sampled_docs
 
     def _get_train_examples(self):
         """Yield all training examples.
@@ -176,6 +185,7 @@ class Testset(object):
     Yields:
         tuple[int, str, str, int] -- A query ID, a query, a document and a binary label
     """
+
     def __init__(self, queries, docs, test_set):
         self.queries = queries
         self.docs = docs
