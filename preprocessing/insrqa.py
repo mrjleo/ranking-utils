@@ -27,6 +27,7 @@ class InsuranceQA(Dataset):
                 * a mapping of dev query IDs to tuples of (document ID, label)
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
+        num = self.args.examples_per_query
         vocab_file = os.path.join(self.args.INSRQA_V2_DIR, 'vocabulary')
         l2a_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.label2answer.token.encoded.gz')
@@ -35,9 +36,9 @@ class InsuranceQA(Dataset):
             'InsuranceQA.question.anslabel.token.100.pool.solr.train.encoded.gz')
         # use dev- and test-set with 1000 examples per query
         dev_file = os.path.join(self.args.INSRQA_V2_DIR,
-            'InsuranceQA.question.anslabel.token.1000.pool.solr.valid.encoded.gz')
+            'InsuranceQA.question.anslabel.token.{}.pool.solr.valid.encoded.gz'.format(num))
         test_file = os.path.join(self.args.INSRQA_V2_DIR,
-            'InsuranceQA.question.anslabel.token.1000.pool.solr.test.encoded.gz')
+            'InsuranceQA.question.anslabel.token.{}.pool.solr.test.encoded.gz'.format(num))
 
         print('processing {}...'.format(vocab_file), flush=True)
         vocab = {}
@@ -109,3 +110,5 @@ class InsuranceQA(Dataset):
         """Add a dataset-specific subparser with all required arguments."""
         sp = subparsers.add_parser(name)
         sp.add_argument('INSRQA_V2_DIR', help='Folder with insuranceQA v2 files')
+        sp.add_argument('--examples_per_query', type=int, choices=[100, 500, 1000, 1500],
+                        default=500, help='How many examples per query in the dev- and testset')
