@@ -147,4 +147,4 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, multi_input_mod
     model.module.load_state_dict(state['state_dict'])
     with torch.no_grad():
         test_map, test_mrr = evaluate(model, test_dl, k, device, multi_input_model)
-    logger.log([ckpt, 'test', test_map, test_mrr])
+    logger.log([best_ckpt, 'test', test_map, test_mrr])
