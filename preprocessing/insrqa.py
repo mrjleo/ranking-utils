@@ -59,7 +59,9 @@ class InsuranceQA(Dataset):
         qrels = defaultdict(set)
         total = count_lines(train_file)
         with gzip.open(train_file) as fp:
-            for q_id, line in enumerate(tqdm(fp, total=total)):
+            for i, line in enumerate(tqdm(fp, total=total)):
+                q_id = i
+
                 _, q_idxs, gt, _ = line.decode('utf-8').split('\t')
                 queries[q_id] = decode(q_idxs.split(), vocab)
                 qrels[q_id] = set(map(int, gt.split()))
@@ -69,7 +71,11 @@ class InsuranceQA(Dataset):
         dev_set = defaultdict(list)
         total = count_lines(dev_file)
         with gzip.open(dev_file) as fp:
-            for q_id, line in enumerate(tqdm(fp, total=total)):
+            for i, line in enumerate(tqdm(fp, total=total)):
+                # we need to make the q_id unique
+                # since the dataset has less than 20k queries, this works
+                q_id = 100000 + i
+
                 _, q_idxs, gt, pool = line.decode('utf-8').split('\t')
                 queries[q_id] = decode(q_idxs.split(), vocab)
 
@@ -87,7 +93,11 @@ class InsuranceQA(Dataset):
         test_set = defaultdict(list)
         total = count_lines(test_file)
         with gzip.open(test_file) as fp:
-            for q_id, line in enumerate(tqdm(fp, total=total)):
+            for i, line in enumerate(tqdm(fp, total=total)):
+                # we need to make the q_id unique
+                # since the dataset has less than 20k queries, this works
+                q_id = 200000 + i
+
                 _, q_idxs, gt, pool = line.decode('utf-8').split('\t')
                 queries[q_id] = decode(q_idxs.split(), vocab)
 
