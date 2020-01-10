@@ -34,20 +34,19 @@ class InsuranceQA(Dataset):
         # use the smallest file here as we do the sampling by ourselves
         train_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.question.anslabel.token.100.pool.solr.train.encoded.gz')
-        # use dev- and test-set with 1000 examples per query
         dev_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.question.anslabel.token.{}.pool.solr.valid.encoded.gz'.format(num))
         test_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.question.anslabel.token.{}.pool.solr.test.encoded.gz'.format(num))
 
-        print('processing {}...'.format(vocab_file), flush=True)
+        print('processing {}...'.format(vocab_file))
         vocab = {}
         total = count_lines(vocab_file)
         with open(vocab_file, encoding='utf-8') as fp:
             for idx, word in tqdm(csv.reader(fp, delimiter='\t', quotechar=None), total=total):
                 vocab[idx] = word
 
-        print('processing {}...'.format(l2a_file), flush=True)
+        print('processing {}...'.format(l2a_file))
         docs = {}
         total = count_lines(l2a_file)
         with gzip.open(l2a_file) as fp:
@@ -55,7 +54,7 @@ class InsuranceQA(Dataset):
                 doc_id, doc_idxs = line.decode('utf-8').split('\t')
                 docs[int(doc_id)] = decode(doc_idxs.split(), vocab)
 
-        print('processing {}...'.format(train_file), flush=True)
+        print('processing {}...'.format(train_file))
         queries = {}
         qrels = defaultdict(set)
         total = count_lines(train_file)
@@ -66,7 +65,7 @@ class InsuranceQA(Dataset):
                 qrels[q_id] = set(map(int, gt.split()))
         train_q_ids = qrels.keys()
 
-        print('processing {}...'.format(dev_file), flush=True)
+        print('processing {}...'.format(dev_file))
         dev_set = defaultdict(list)
         total = count_lines(dev_file)
         with gzip.open(dev_file) as fp:
@@ -84,7 +83,7 @@ class InsuranceQA(Dataset):
                 for neg_doc_id in neg_doc_ids:
                     dev_set[q_id].append((neg_doc_id, 0))
 
-        print('processing {}...'.format(test_file), flush=True)
+        print('processing {}...'.format(test_file))
         test_set = defaultdict(list)
         total = count_lines(test_file)
         with gzip.open(test_file) as fp:

@@ -18,7 +18,7 @@ def read_args(working_dir):
         working_dir {str} -- Working directory
 
     Returns:
-        dict -- A dict that maps arguments to their values
+        dict[str, str] -- A dict that maps arguments to their values
     """
     args = {}
     with open(os.path.join(working_dir, 'args.csv')) as fp:
