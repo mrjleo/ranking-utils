@@ -111,14 +111,14 @@ def train_model_bce_batches(model, train_dl, optimizer, args, device):
         torch.save(state, fname)
 
 
-def train_model_multi_bce(model, train_dl, optimizer, args, device):
+def train_model_multi_bce(model, train_dl, optimizers, args, device):
     """Train a model with multiple outputs using binary cross entropy. Save the model after each
     epoch and log the loss in a file.
 
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
-        optimizer {torch.optim.Optimizer} -- Optimizer
+        optimizers {list[torch.optim.Optimizer]} -- Optimizers, one for each output
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
     """
@@ -146,22 +146,31 @@ def train_model_multi_bce(model, train_dl, optimizer, args, device):
     for epoch in range(args.epochs):
         loss_sum = 0
 
-        optimizer.zero_grad()
+        for optimizer in optimizers:
+            optimizer.zero_grad()
+
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
             out = model(b_x.to(device))
-            loss = sum(criterion(b_o, b_y.to(device)) for b_o in out) / args.accumulate_batches
-            loss.backward()
+
+            losses = [criterion(b_o, b_y.to(device)) / args.accumulate_batches for b_o in out]
+            for loss in losses:
+                loss.backward()
+
             if (i + 1) % args.accumulate_batches == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-            loss_sum += loss.item()
+                for optimizer in optimizers:
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+            for loss in losses:
+                loss_sum += loss.item()
 
         epoch_loss = loss_sum / len(train_dl)
         print('epoch {} -- loss: {}'.format(epoch + 1, epoch_loss))
         logger.log([epoch + 1, epoch_loss])
 
-        state = {'epoch': epoch + 1, 'state_dict': model.module.state_dict(),
-                 'optimizer': optimizer.state_dict()}
+        state = {'epoch': epoch + 1, 'state_dict': model.module.state_dict()}
+        for i, optimizer in enumerate(optimizers):
+            state['optimizer_{}'.format(i)] = optimizer.state_dict()
         fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch + 1))
         print('saving {}...'.format(fname))
         torch.save(state, fname)
