@@ -6,11 +6,12 @@ import torch
 from tqdm import tqdm
 
 from qa_utils.misc import Logger
+from qa_utils.io import batch_to_device
 
 
 def save_args(args_file, args):
     """Save all arguments in a file.
-    
+
     Arguments:
         args_file {str} -- The .csv file to save
         args {argparse.Namespace} -- Command line arguments
@@ -22,7 +23,7 @@ def save_args(args_file, args):
             writer.writerow([arg, getattr(args, arg)])
 
 
-def train_model_bce(model, train_dl, optimizer, args, device):
+def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after each epoch and log the loss in
     a file.
 
@@ -32,6 +33,9 @@ def train_model_bce(model, train_dl, optimizer, args, device):
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
+
+    Keyword Arguments:
+        has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
@@ -47,7 +51,11 @@ def train_model_bce(model, train_dl, optimizer, args, device):
         loss_sum = 0
         optimizer.zero_grad()
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
-            out = model(b_x.to(device))
+            if has_multiple_inputs:
+                inputs = batch_to_device(b_x, device)
+                out = model(*inputs)
+            else:
+                out = model(b_x.to(device))
             loss = criterion(out, b_y.to(device)) / args.accumulate_batches
             loss.backward()
             if (i + 1) % args.accumulate_batches == 0:
@@ -65,7 +73,7 @@ def train_model_bce(model, train_dl, optimizer, args, device):
         torch.save(state, fname)
 
 
-def train_model_bce_batches(model, train_dl, optimizer, args, device):
+def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after a number of batches and log
     the loss in a file.
 
@@ -75,6 +83,9 @@ def train_model_bce_batches(model, train_dl, optimizer, args, device):
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
+
+    Keyword Arguments:
+        has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
@@ -93,9 +104,15 @@ def train_model_bce_batches(model, train_dl, optimizer, args, device):
         optimizer.zero_grad()
         for i in tqdm(range(args.save_after)):
             b_x, b_y = next(train_inf)
-            out = model(b_x.to(device))
+            if has_multiple_inputs:
+                inputs = batch_to_device(b_x, device)
+                out = model(*inputs)
+            else:
+                out = model(b_x.to(device))
+
             loss = criterion(out, b_y.to(device)) / args.accumulate_batches
             loss.backward()
+
             if (i + 1) % args.accumulate_batches == 0:
                 optimizer.step()
                 optimizer.zero_grad()

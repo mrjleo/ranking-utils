@@ -9,8 +9,8 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
-from qa_utils.io import batch_to_device
 from qa_utils.misc import Logger
+from qa_utils.io import batch_to_device
 
 
 def read_args(working_dir):
