@@ -57,7 +57,8 @@ class MSMARCO(Dataset):
         """Read all dataset files.
 
         Returns:
-            tuple[dict, dict, dict, set, dict, dict] -- a tuple containing:
+            tuple[dict[int, str], dict[int, str], dict[int, set[int]], set[int],
+                  dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
                 * a mapping of query IDs to relevant document IDs
@@ -68,23 +69,30 @@ class MSMARCO(Dataset):
         docs_file = os.path.join(self.args.MSM_DIR, 'collection.tsv')
         train_queries_file = os.path.join(self.args.MSM_DIR, 'queries.train.tsv')
         train_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.train.tsv')
-
         docs = read_collection(docs_file)
         train_queries = read_collection(train_queries_file)
         qrels = read_qrels(train_qrels_file)
 
-        dev_file = os.path.join(self.args.MSM_DIR, 'top1000.dev.tsv')
-        dev_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.dev.tsv')
-        dev_set = read_dev_set(dev_file, dev_qrels_file)
-        dev_queries_file = os.path.join(self.args.MSM_DIR, 'queries.dev.tsv')
-        dev_queries = read_collection(dev_queries_file)
+        orig_dev_file = os.path.join(self.args.MSM_DIR, 'top1000.dev.tsv')
+        orig_dev_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.dev.tsv')
+        orig_dev_set = read_dev_set(orig_dev_file, orig_dev_qrels_file)
+        orig_dev_queries_file = os.path.join(self.args.MSM_DIR, 'queries.dev.tsv')
+        orig_dev_queries = read_collection(orig_dev_queries_file)
 
         queries = train_queries.copy()
-        queries.update(dev_queries)
+        queries.update(orig_dev_queries)
         train_q_ids = train_queries.keys()
 
-        # we don't have a testset
-        test_set = {}
+        print('reading {}...'.format(self.args.MSM_SPLIT))
+        with open(self.args.MSM_SPLIT, 'rb') as fp:
+            dev_q_ids = pickle.load(fp)
+
+        dev_set, test_set = {}, {}
+        for q_id, d in orig_dev_set.items():
+            if q_id in dev_q_ids:
+                dev_set[q_id] = d
+            else:
+                test_set[q_id] = d
 
         return queries, docs, qrels, train_q_ids, dev_set, test_set
 
@@ -93,3 +101,4 @@ class MSMARCO(Dataset):
         """Add a dataset-specific subparser with all required arguments."""
         sp = subparsers.add_parser(name)
         sp.add_argument('MSM_DIR', help='Folder with all MS MARCO ranking files')
+        sp.add_argument('MSM_SPLIT', help='MS Marco split')

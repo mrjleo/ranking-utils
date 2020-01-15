@@ -16,7 +16,8 @@ class WikiPassageQA(Dataset):
         """Read all dataset files.
 
         Returns:
-            tuple[dict, dict, dict, set, dict, dict] -- a tuple containing:
+            tuple[dict[int, str], dict[int, str], dict[int, set[int]], set[int],
+                  dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
                 * a mapping of query IDs to relevant document IDs

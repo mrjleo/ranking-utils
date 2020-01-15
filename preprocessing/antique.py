@@ -36,7 +36,8 @@ class Antique(Dataset):
         """Read all dataset files.
 
         Returns:
-            tuple[dict, dict, dict, set, dict, dict] -- a tuple containing:
+            tuple[dict[int, str], dict[int, str], dict[int, set[int]], set[int],
+                  dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
                 * a mapping of query IDs to relevant document IDs
@@ -48,7 +49,7 @@ class Antique(Dataset):
         with open(doc_file, encoding='utf-8') as fp:
             docs = {get_int_id(doc_id): doc for doc_id, doc in csv.reader(fp, delimiter='\t',
                                                                           quotechar=None)}
-        
+
         train_queries_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-train-queries.txt')
         train_queries = read_queries(train_queries_file)
 
