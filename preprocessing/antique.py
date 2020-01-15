@@ -59,20 +59,14 @@ class Antique(Dataset):
         test_queries_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-test-queries.txt')
         test_queries = read_queries(test_queries_file)
 
-        test_qrels_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-test.qrel')
-        test_qrels = read_qrels(test_qrels_file)
-
         queries = train_queries.copy()
         queries.update(test_queries)
-
-        qrels = train_qrels.copy()
-        qrels.update(test_qrels)
 
         print('reading {}...'.format(self.args.SPLIT_FILE))
         with open(self.args.SPLIT_FILE, 'rb') as fp:
             train_q_ids, dev_set, test_set = pickle.load(fp)
 
-        return queries, docs, qrels, train_q_ids, dev_set, test_set
+        return queries, docs, train_qrels, train_q_ids, dev_set, test_set
 
     @staticmethod
     def add_subparser(subparsers, name):
