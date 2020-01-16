@@ -6,7 +6,7 @@ import torch
 from tqdm import tqdm
 
 from qa_utils.misc import Logger
-from qa_utils.io import batch_to_device
+from qa_utils.io import batches_to_device
 
 
 def save_args(args_file, args):
@@ -52,7 +52,7 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
         optimizer.zero_grad()
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
             if has_multiple_inputs:
-                inputs = batch_to_device(b_x, device)
+                inputs = batches_to_device(b_x, device)
                 out = model(*inputs)
             else:
                 out = model(b_x.to(device))
@@ -105,7 +105,7 @@ def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multip
         for i in tqdm(range(args.save_after)):
             b_x, b_y = next(train_inf)
             if has_multiple_inputs:
-                inputs = batch_to_device(b_x, device)
+                inputs = batches_to_device(b_x, device)
                 out = model(*inputs)
             else:
                 out = model(b_x.to(device))

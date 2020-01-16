@@ -10,7 +10,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
 from qa_utils.misc import Logger
-from qa_utils.io import batch_to_device
+from qa_utils.io import batches_to_device
 
 
 def read_args(working_dir):
@@ -100,7 +100,7 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
     for batch in tqdm(dataloader):
         q_ids, inputs, labels = batch
         if has_multiple_inputs:
-            inputs = batch_to_device(inputs, device)
+            inputs = batches_to_device(inputs, device)
             predictions = model(*inputs).cpu().detach()
         else:
             predictions = model(inputs.to(device)).cpu().detach()

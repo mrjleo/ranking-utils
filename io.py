@@ -27,7 +27,7 @@ def dump_pkl_file(obj, filepath):
         pickle.dump(obj, fp)
 
 
-def batch_to_device(batch, device):
+def batches_to_device(batches, device):
     """Take a multi input batch and send it to a pytorch device.
 
     Args:
@@ -37,7 +37,7 @@ def batch_to_device(batch, device):
     Returns:
 
     """
-    return [y.to(device) for y in batch]
+    return [y.to(device) for y in batches if y is not None]
 
 
 def get_cuda_device():
