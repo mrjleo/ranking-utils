@@ -11,10 +11,14 @@ class Logger(object):
 
     Keyword Arguments:
         add_timestamp {bool} -- Whether to add timestamps to each row (default: {True})
+        new_file {bool} -- Whether to overwrite an existing file (default: {True})
     """
-    def __init__(self, filename, header, add_timestamp=True):
+    def __init__(self, filename, header, add_timestamp=True, new_file=True):
         self.add_timestamp = add_timestamp
-        self._fp = open(filename, 'w', encoding='utf-8')
+        if new_file:
+            self._fp = open(filename, 'w', encoding='utf-8')
+        else:
+            self._fp = open(filename, 'a', encoding='utf-8')
         self._writer = csv.writer(self._fp)
         if add_timestamp:
             self._writer.writerow(header + ['time'])
