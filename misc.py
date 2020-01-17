@@ -20,11 +20,12 @@ class Logger(object):
         else:
             self._fp = open(filename, 'a', encoding='utf-8')
         self._writer = csv.writer(self._fp)
-        if add_timestamp:
-            self._writer.writerow(header + ['time'])
-        else:
-            self._writer.writerow(header)
-        self._fp.flush()
+        if new_file:
+            if add_timestamp:
+                self._writer.writerow(header + ['time'])
+            else:
+                self._writer.writerow(header)
+            self._fp.flush()
 
     def log(self, item):
         """Log a single item.

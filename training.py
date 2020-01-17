@@ -7,12 +7,10 @@ from tqdm import tqdm
 
 from qa_utils.misc import Logger
 from qa_utils.io import batches_to_device
-from qa_utils.evaluation import get_checkpoints
 
 
 def save_args(args_file, args):
     """Save all arguments in a file.
-
     Arguments:
         args_file {str} -- The .csv file to save
         args {argparse.Namespace} -- Command line arguments
@@ -24,40 +22,29 @@ def save_args(args_file, args):
             writer.writerow([arg, getattr(args, arg)])
 
 
-def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_inputs=False,
-                    continue_training=True):
+def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after each epoch and log the loss in
     a file.
-
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
-
     Keyword Arguments:
         has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
-        continue_training {bool} -- Load the last existing checkpoint (default: {True})
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
     os.makedirs(ckpt_dir, exist_ok=True)
-    logger = Logger(log_file, ['epoch', 'loss'], new_file=not continue_training)
+    logger = Logger(log_file, ['epoch', 'loss'])
 
     args_file = os.path.join(args.working_dir, 'args.csv')
     save_args(args_file, args)
 
-    checkpoints = get_checkpoints(ckpt_dir, r'weights_(\d+).pt')
-    if len(checkpoints) > 0 and continue_training:
-        checkpoint = torch.load(checkpoints[-1])
-        model.module.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        last_epoch = checkpoint['epoch']
-
     criterion = torch.nn.BCEWithLogitsLoss()
     model.train()
-    for epoch in range(last_epoch, last_epoch + args.epochs):
+    for epoch in range(args.epochs):
         loss_sum = 0
         optimizer.zero_grad()
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
@@ -83,41 +70,31 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
         torch.save(state, fname)
 
 
-def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multiple_inputs=False,
-                            continue_training=True):
+def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after a number of batches and log
     the loss in a file.
-
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
-
     Keyword Arguments:
         has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
-        continue_training {bool} -- Load the last existing checkpoint (default: {True})
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
     os.makedirs(ckpt_dir, exist_ok=True)
-    logger = Logger(log_file, ['epoch', 'loss'], new_file=not continue_training)
+    logger = Logger(log_file, ['epoch', 'loss'])
 
     args_file = os.path.join(args.working_dir, 'args.csv')
     save_args(args_file, args)
 
-    checkpoints = get_checkpoints(ckpt_dir, r'weights_(\d+).pt')
-    if len(checkpoints) > 0 and continue_training:
-        checkpoint = torch.load(checkpoints[-1])
-        model.module.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        last_epoch = checkpoint['epoch']
-
     criterion = torch.nn.BCEWithLogitsLoss()
     train_inf = itertools.cycle(train_dl)
+
     model.train()
-    for epoch in range(last_epoch, last_epoch + args.epochs):
+    for epoch in range(args.epochs):
         loss_sum = 0
         optimizer.zero_grad()
         for i in tqdm(range(args.save_after)):
@@ -149,7 +126,6 @@ def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multip
 def train_model_multi_bce(model, train_dl, optimizers, args, device):
     """Train a model with multiple outputs using binary cross entropy. Save the model after each
     epoch and log the loss in a file.
-
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
