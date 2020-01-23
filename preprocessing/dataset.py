@@ -1,6 +1,7 @@
 import os
 import abc
 import random
+from collections import defaultdict
 
 from tqdm import tqdm
 
@@ -11,11 +12,9 @@ class Dataset(abc.ABC):
     Arguments:
         args {argparse.Namespace} -- The command line arguments
     """
-
     def __init__(self, args):
         self.args = args
-        self.queries, self.docs, self.qrels, self.train_q_ids, self.dev_set, self.test_set = \
-            self._read_dataset()
+        self.queries, self.docs, self.train_set, self.dev_set, self.test_set = self._read_dataset()
 
     @abc.abstractmethod
     def _read_dataset(self):
@@ -26,8 +25,7 @@ class Dataset(abc.ABC):
                   dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
-                * a mapping of query IDs to relevant document IDs
-                * a set of query IDs in the trainset
+                * a mapping of train query IDs to tuples of (document ID, label)
                 * a mapping of dev query IDs to tuples of (document ID, label)
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
@@ -40,8 +38,7 @@ class Dataset(abc.ABC):
         Returns:
             Trainset -- The trainset
         """
-        return Trainset(self.queries, self.docs, self.train_q_ids, self.qrels,
-                        self.args.num_neg_examples)
+        return Trainset(self.queries, self.docs, self.train_set, self.args.num_neg_examples)
 
     @property
     def devset(self):
@@ -106,31 +103,30 @@ class Trainset(object):
             * a relevant document
             * a list of irrelevant documents
     """
-
-    def __init__(self, queries, docs, train_q_ids, train_qrels, num_neg_examples):
+    def __init__(self, queries, docs, train_set, num_neg_examples):
         self.queries = queries
-        self.docs = docs
-        self.train_q_ids = train_q_ids
-        self.train_qrels = train_qrels
         self.num_neg_examples = num_neg_examples
 
-        # enumerate all positive (query, document) pairs
-        self.pos_pairs = []
-        for q_id in train_q_ids:
-            # empty queries or documents will cause errors
+        self.docs = {}
+        for doc_id, doc in docs.items():
+            # empty documents will cause errors
+            if len(doc) > 0:
+                self.docs[doc_id] = doc
+
+        self.doc_ids = list(self.docs.keys())
+
+        self.train_positives, self.train_negatives = defaultdict(set), defaultdict(set)
+        for q_id, items in tqdm(train_set.items()):
+            # empty queries will cause errors
             if len(queries[q_id]) == 0:
                 continue
-            for doc_id in train_qrels[q_id]:
-                if len(docs[doc_id]) == 0:
+            for doc_id, label in items:
+                if doc_id not in self.docs:
                     continue
-                self.pos_pairs.append((q_id, doc_id))
-
-        # a list of all doc ids to sample negatives from
-        self.neg_sample_doc_ids = set()
-        for doc_id, doc in docs.items():
-            if len(doc) > 0:
-                self.neg_sample_doc_ids.add(doc_id)
-        self.neg_sample_doc_ids = list(self.neg_sample_doc_ids)
+                if label == 1:
+                    self.train_positives[q_id].add(doc_id)
+                else:
+                    self.train_negatives[q_id].add(doc_id)
 
     def _sample_negatives(self, q_id):
         """Sample a number of negative/irrelevant documents for a query.
@@ -141,18 +137,17 @@ class Trainset(object):
         Returns:
             list[int] -- A list of irrelevant document IDs
         """
+        # sampling from the negative qrels is always better
+        if self.num_neg_examples <= len(self.train_negatives[q_id]):
+            return random.sample(self.train_negatives[q_id], self.num_neg_examples)
 
-        rels = self.train_qrels[q_id]
-        sampled_docs = set()
-
-        for _ in range(self.num_neg_examples):
-            sampled_id = random.choice(self.neg_sample_doc_ids)
-            # redo sampling if relevant to the query or if we have already sampled it
-            while sampled_id in rels or sampled_id in sampled_docs:
-                sampled_id = random.choice(self.neg_sample_doc_ids)
-            sampled_docs.add(sampled_id)
-
-        return sampled_docs
+        # otherwise, take the negative qrels and sample the rest randomly from all docs
+        sample = set(self.train_negatives[q_id])
+        while len(sample) < self.num_neg_examples:
+            doc_id = random.choice(self.doc_ids)
+            if doc_id not in self.train_positives[q_id]:
+                sample.add(doc_id)
+        return sample
 
     def _get_train_examples(self):
         """Yield all training examples.
@@ -163,12 +158,13 @@ class Trainset(object):
                 * a relevant document
                 * a list of irrelevant documents
         """
-        for q_id, pos_doc_id in self.pos_pairs:
-            neg_docs = [self.docs[neg_doc_id] for neg_doc_id in self._sample_negatives(q_id)]
-            yield self.queries[q_id], self.docs[pos_doc_id], neg_docs
+        for q_id in self.train_positives:
+            for pos_doc_id in self.train_positives[q_id]:
+                neg_docs = [self.docs[neg_doc_id] for neg_doc_id in self._sample_negatives(q_id)]
+                yield self.queries[q_id], self.docs[pos_doc_id], neg_docs
 
     def __len__(self):
-        return len(self.pos_pairs)
+        return sum(map(len, self.train_positives.values()))
 
     def __iter__(self):
         yield from self._get_train_examples()
@@ -185,7 +181,6 @@ class Testset(object):
     Yields:
         tuple[int, str, str, int] -- A query ID, a query, a document and a binary label
     """
-
     def __init__(self, queries, docs, test_set):
         self.queries = queries
         self.docs = docs

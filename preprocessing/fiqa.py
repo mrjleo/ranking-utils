@@ -19,8 +19,7 @@ class FiQA(Dataset):
                   dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
-                * a mapping of query IDs to relevant document IDs
-                * a set of query IDs in the trainset
+                * a mapping of train query IDs to tuples of (document ID, label)
                 * a mapping of dev query IDs to tuples of (document ID, label)
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
@@ -60,7 +59,13 @@ class FiQA(Dataset):
         with open(split_file, 'rb') as fp:
             train_q_ids, dev_set, test_set = pickle.load(fp)
 
-        return queries, docs, qrels, train_q_ids, dev_set, test_set
+        # here we only have positive qrels
+        train_set = defaultdict(list)
+        for q_id in train_q_ids:
+            for doc_id in qrels[q_id]:
+                train_set[q_id].append((doc_id, 1))
+
+        return queries, docs, train_set, dev_set, test_set
 
     @staticmethod
     def add_subparser(subparsers, name):

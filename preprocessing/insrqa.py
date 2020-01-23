@@ -23,8 +23,7 @@ class InsuranceQA(Dataset):
                   dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
-                * a mapping of query IDs to relevant document IDs
-                * a set of query IDs in the trainset
+                * a mapping of train query IDs to tuples of (document ID, label)
                 * a mapping of dev query IDs to tuples of (document ID, label)
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
@@ -32,9 +31,9 @@ class InsuranceQA(Dataset):
         vocab_file = os.path.join(self.args.INSRQA_V2_DIR, 'vocabulary')
         l2a_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.label2answer.token.encoded.gz')
-        # use the smallest file here as we do the sampling by ourselves
+        # use the largest file here to have more to sample from
         train_file = os.path.join(self.args.INSRQA_V2_DIR,
-            'InsuranceQA.question.anslabel.token.100.pool.solr.train.encoded.gz')
+            'InsuranceQA.question.anslabel.token.1500.pool.solr.train.encoded.gz')
         dev_file = os.path.join(self.args.INSRQA_V2_DIR,
             'InsuranceQA.question.anslabel.token.{}.pool.solr.valid.encoded.gz'.format(num))
         test_file = os.path.join(self.args.INSRQA_V2_DIR,
@@ -57,16 +56,23 @@ class InsuranceQA(Dataset):
 
         print('processing {}...'.format(train_file))
         queries = {}
-        qrels = defaultdict(set)
+        train_set = defaultdict(list)
         total = count_lines(train_file)
         with gzip.open(train_file) as fp:
             for i, line in enumerate(tqdm(fp, total=total)):
                 q_id = i
 
-                _, q_idxs, gt, _ = line.decode('utf-8').split('\t')
+                _, q_idxs, gt, pool = line.decode('utf-8').split('\t')
                 queries[q_id] = decode(q_idxs.split(), vocab)
-                qrels[q_id] = set(map(int, gt.split()))
-        train_q_ids = qrels.keys()
+
+                pos_doc_ids = set(map(int, gt.split()))
+                # make sure no positive IDs are in the pool
+                neg_doc_ids = set(map(int, pool.split())) - pos_doc_ids
+
+                for pos_doc_id in pos_doc_ids:
+                    train_set[q_id].append((pos_doc_id, 1))
+                for neg_doc_id in neg_doc_ids:
+                    train_set[q_id].append((pos_doc_id, 0))
 
         print('processing {}...'.format(dev_file))
         dev_set = defaultdict(list)
@@ -112,7 +118,7 @@ class InsuranceQA(Dataset):
                 for neg_doc_id in neg_doc_ids:
                     test_set[q_id].append((neg_doc_id, 0))
 
-        return queries, docs, qrels, train_q_ids, dev_set, test_set
+        return queries, docs, train_set, dev_set, test_set
 
 
     @staticmethod

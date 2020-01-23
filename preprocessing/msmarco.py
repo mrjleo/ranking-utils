@@ -10,7 +10,7 @@ from qa_utils.preprocessing.dataset import Dataset
 
 
 def read_collection(file_path):
-    print('processing {}...'.format(file_path), flush=True)
+    print('reading {}...'.format(file_path))
     items = {}
     total = count_lines(file_path)
     with open(file_path, encoding='utf-8') as fp:
@@ -20,19 +20,8 @@ def read_collection(file_path):
     return items
 
 
-def read_qrels(file_path):
-    print('processing {}...'.format(file_path), flush=True)
-    qrels = defaultdict(set)
-    total = count_lines(file_path)
-    with open(file_path, encoding='utf-8') as fp:
-        reader = csv.reader(fp, delimiter='\t')
-        for q_id, _, doc_id, _ in tqdm(reader, total=total):
-            qrels[int(q_id)].add(int(doc_id))
-    return qrels
-
-
-def read_dev_set(dev_set_file, qrels_file):
-    print('processing {}...'.format(qrels_file), flush=True)
+def read_set(set_file, qrels_file):
+    print('reading {}...'.format(qrels_file))
     qrels = defaultdict(set)
     total = count_lines(qrels_file)
     with open(qrels_file, encoding='utf-8') as fp:
@@ -40,12 +29,11 @@ def read_dev_set(dev_set_file, qrels_file):
         for q_id, _, doc_id, _ in tqdm(reader, total=total):
             qrels[int(q_id)].add(int(doc_id))
 
-    print('processing {}...'.format(dev_set_file), flush=True)
+    print('reading {}...'.format(set_file))
     dev_set = defaultdict(list)
-    total = count_lines(dev_set_file)
-    with open(dev_set_file, encoding='utf-8') as fp:
+    with open(set_file, encoding='utf-8') as fp:
         reader = csv.reader(fp, delimiter='\t')
-        for q_id, doc_id, _, _ in tqdm(reader, total=total):
+        for q_id, doc_id, _, _ in tqdm(reader):
             label = 1 if int(doc_id) in qrels[int(q_id)] else 0
             dev_set[int(q_id)].append((int(doc_id), label))
     return dev_set
@@ -61,27 +49,27 @@ class MSMARCO(Dataset):
                   dict[int, tuple[int, int]], dict[int, tuple[int, int]]] -- A tuple containing
                 * a mapping of query IDs to queries
                 * a mapping of document IDs to documents
-                * a mapping of query IDs to relevant document IDs
-                * a set of query IDs in the trainset
+                * a mapping of train query IDs to tuples of (document ID, label)
                 * a mapping of dev query IDs to tuples of (document ID, label)
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
         docs_file = os.path.join(self.args.MSM_DIR, 'collection.tsv')
-        train_queries_file = os.path.join(self.args.MSM_DIR, 'queries.train.tsv')
-        train_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.train.tsv')
         docs = read_collection(docs_file)
+
+        train_queries_file = os.path.join(self.args.MSM_DIR, 'queries.train.tsv')
         train_queries = read_collection(train_queries_file)
-        qrels = read_qrels(train_qrels_file)
+        orig_dev_queries_file = os.path.join(self.args.MSM_DIR, 'queries.dev.tsv')
+        orig_dev_queries = read_collection(orig_dev_queries_file)
+        queries = train_queries.copy()
+        queries.update(orig_dev_queries)
+
+        train_file = os.path.join(self.args.MSM_DIR, 'top1000.train.txt')
+        train_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.train.tsv')
+        train_set = read_set(train_file, train_qrels_file)
 
         orig_dev_file = os.path.join(self.args.MSM_DIR, 'top1000.dev.tsv')
         orig_dev_qrels_file = os.path.join(self.args.MSM_DIR, 'qrels.dev.tsv')
-        orig_dev_set = read_dev_set(orig_dev_file, orig_dev_qrels_file)
-        orig_dev_queries_file = os.path.join(self.args.MSM_DIR, 'queries.dev.tsv')
-        orig_dev_queries = read_collection(orig_dev_queries_file)
-
-        queries = train_queries.copy()
-        queries.update(orig_dev_queries)
-        train_q_ids = train_queries.keys()
+        orig_dev_set = read_set(orig_dev_file, orig_dev_qrels_file)
 
         print('reading {}...'.format(self.args.MSM_SPLIT))
         with open(self.args.MSM_SPLIT, 'rb') as fp:
@@ -94,7 +82,7 @@ class MSMARCO(Dataset):
             else:
                 test_set[q_id] = d
 
-        return queries, docs, qrels, train_q_ids, dev_set, test_set
+        return queries, docs, train_set, dev_set, test_set
 
     @staticmethod
     def add_subparser(subparsers, name):
