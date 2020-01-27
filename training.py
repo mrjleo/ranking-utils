@@ -45,81 +45,27 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
     criterion = torch.nn.BCEWithLogitsLoss()
     model.train()
     for epoch in range(args.epochs):
-        loss_sum = 0
         optimizer.zero_grad()
-        for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
+        loss_sum = 0
+        for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
             if has_multiple_inputs:
                 inputs = batches_to_device(b_x, device)
                 out = model(*inputs)
             else:
                 out = model(b_x.to(device))
             loss = criterion(out, b_y.to(device)) / args.accumulate_batches
+            loss_sum += loss.item()
             loss.backward()
             if (i + 1) % args.accumulate_batches == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            loss_sum += loss.item()
 
         epoch_loss = loss_sum / len(train_dl)
-        logger.log([epoch + 1, epoch_loss])
+        logger.log([epoch, epoch_loss])
 
-        state = {'epoch': epoch + 1, 'state_dict': model.module.state_dict(),
+        state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict(),
                  'optimizer': optimizer.state_dict()}
-        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch + 1))
-        print('saving {}...'.format(fname))
-        torch.save(state, fname)
-
-
-def train_model_bce_batches(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
-    """Train a model using binary cross entropy. Save the model after a number of batches and log
-    the loss in a file.
-    Arguments:
-        model {torch.nn.Module} -- The model to train
-        train_dl {torch.utils.data.DataLoader} -- Train dataloader
-        optimizer {torch.optim.Optimizer} -- Optimizer
-        args {argparse.Namespace} -- All command line arguments
-        device {torch.device} -- Device to train on
-    Keyword Arguments:
-        has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
-    """
-    ckpt_dir = os.path.join(args.working_dir, 'ckpt')
-    log_file = os.path.join(args.working_dir, 'train.csv')
-    os.makedirs(ckpt_dir, exist_ok=True)
-    logger = Logger(log_file, ['epoch', 'loss'])
-
-    args_file = os.path.join(args.working_dir, 'args.csv')
-    save_args(args_file, args)
-
-    criterion = torch.nn.BCEWithLogitsLoss()
-    train_inf = itertools.cycle(train_dl)
-
-    model.train()
-    for epoch in range(args.epochs):
-        loss_sum = 0
-        optimizer.zero_grad()
-        for i in tqdm(range(args.save_after)):
-            b_x, b_y = next(train_inf)
-            if has_multiple_inputs:
-                inputs = batches_to_device(b_x, device)
-                out = model(*inputs)
-            else:
-                out = model(b_x.to(device))
-
-            loss = criterion(out, b_y.to(device)) / args.accumulate_batches
-            loss.backward()
-
-            if (i + 1) % args.accumulate_batches == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-            loss_sum += loss.item()
-
-        epoch_loss = loss_sum / args.save_after
-        logger.log([epoch + 1, epoch_loss])
-
-        state = {'epoch': epoch + 1, 'state_dict': model.module.state_dict(),
-                 'optimizer': optimizer.state_dict()}
-        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch + 1))
-        print('saving {}...'.format(fname))
+        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch))
         torch.save(state, fname)
 
 
@@ -160,11 +106,10 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
         for optimizer in optimizers:
             optimizer.zero_grad()
 
-        for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
-            out = model(b_x.to(device))
-
-            losses = [criterion(b_o, b_y.to(device)) / args.accumulate_batches for b_o in out]
-            for loss in losses:
+        for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
+            for b_o in model(b_x.to(device)):
+                loss = criterion(b_o, b_y.to(device)) / args.accumulate_batches
+                loss_sum += loss.item()
                 loss.backward()
 
             if (i + 1) % args.accumulate_batches == 0:
@@ -172,16 +117,11 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
                     optimizer.step()
                     optimizer.zero_grad()
 
-            for loss in losses:
-                loss_sum += loss.item()
-
         epoch_loss = loss_sum / len(train_dl)
-        print('epoch {} -- loss: {}'.format(epoch + 1, epoch_loss))
-        logger.log([epoch + 1, epoch_loss])
+        logger.log([epoch, epoch_loss])
 
-        state = {'epoch': epoch + 1, 'state_dict': model.module.state_dict()}
+        state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict()}
         for i, optimizer in enumerate(optimizers):
             state['optimizer_{}'.format(i)] = optimizer.state_dict()
-        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch + 1))
-        print('saving {}...'.format(fname))
+        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch))
         torch.save(state, fname)

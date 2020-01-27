@@ -6,45 +6,45 @@ import torch
 def load_pkl_file(filepath):
     """Load the contents of a pickle file.
 
-        Args:
-            filepath {str} -- path to the pickle file to load.
+        Arguments:
+            filepath {str} -- path to the pickle file to load
 
         Returns:
-            object -- the object stored in the pickle file.
+            object -- the object stored in the pickle file
         """
     with open(filepath, 'rb') as pkl_fp:
         return pickle.load(pkl_fp)
 
 
 def dump_pkl_file(obj, filepath):
-    """ Dumps an object into a pickle file.
+    """Dump an object into a pickle file.
 
-    Args:
+    Arguments:
         obj {object} -- object to pickle
-        filepath {str} -- destination path for the pickle file.
+        filepath {str} -- destination path for the pickle file
     """
     with open(filepath, 'wb') as fp:
         pickle.dump(obj, fp)
 
 
-def batches_to_device(batches, device):
+def batches_to_device(batch, device):
     """Take a multi input batch and send it to a pytorch device.
 
-    Args:
-        batch {Iterable(torch.Tensor)} -- A batch of multiple inputs i.e. a list of single input batches.
-        device {torch.device} -- a pytorch device to send the batch to.
+    Arguments:
+        batch {Iterable[torch.Tensor]} -- A list of single input batches
+        device {torch.device} -- a pytorch device to send the batch to
 
     Returns:
-
+        list[torch.Tensor] -- The tensors
     """
-    return [y.to(device) for y in batches if y is not None]
+    return [y.to(device) for y in batch if y is not None]
 
 
 def get_cuda_device():
     """Get the pytorch cuda device if available.
 
-    Returns: A cuda device if available, cpu device else.
-
+    Returns:
+        {torch.device} -- A cuda device if available, otherwise cpu
     """
     if torch.cuda.is_available():
         # cuda:0 will still use all GPUs
@@ -53,5 +53,4 @@ def get_cuda_device():
         print('using {} device(s): "{}"'.format(torch.cuda.device_count(), dev_name))
     else:
         device = torch.device('cpu')
-
     return device
