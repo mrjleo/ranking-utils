@@ -9,6 +9,18 @@ from qa_utils.preprocessing.misc import count_lines
 from qa_utils.preprocessing.dataset import Dataset
 
 
+def get_doc_list(q_id, top, qrels):
+    result = []
+    # positives
+    for doc_id in qrels[q_id]:
+        result.append((doc_id, 1))
+    # remaining negatives
+    for doc_id in top[q_id]:
+        if doc_id not in qrels[q_id]:
+            result.append((doc_id, 0))
+    return result
+
+
 class FiQA(Dataset):
     """FiQA dataset class."""
     def _read_dataset(self):
@@ -57,13 +69,17 @@ class FiQA(Dataset):
 
         print('reading {}...'.format(split_file))
         with open(split_file, 'rb') as fp:
-            train_q_ids, dev_set, test_set = pickle.load(fp)
+            top, dev_q_ids, test_q_ids = pickle.load(fp)
+        assert len(queries) == len(top)
 
-        # here we only have positive qrels
-        train_set = defaultdict(list)
-        for q_id in train_q_ids:
-            for doc_id in qrels[q_id]:
-                train_set[q_id].append((doc_id, 1))
+        train_set, dev_set, test_set = {}, {}, {}
+        for q_id in queries:
+            if q_id in dev_q_ids:
+                dev_set[q_id] = get_doc_list(q_id, top, qrels)
+            elif q_id in test_q_ids:
+                test_set[q_id] = get_doc_list(q_id, top, qrels)
+            else:
+                train_set[q_id] = get_doc_list(q_id, top, qrels)
 
         return queries, docs, train_set, dev_set, test_set
 
