@@ -20,16 +20,41 @@ def read_queries(file_path):
         return {int(q_id): query for q_id, query in csv.reader(fp, delimiter='\t')}
 
 
-def read_train_set(file_path):
-    train_set = defaultdict(list)
+def read_qrels(file_path):
+    positives, negatives = defaultdict(set), defaultdict(set)
     with open(file_path, encoding='utf-8') as fp:
         for line in fp:
             q_id, _, doc_id, rel = line.split()
             if int(rel) > 2:
-                train_set[int(q_id)].append((get_int_id(doc_id), 1))
+                positives[int(q_id)].add(get_int_id(doc_id))
             else:
-                train_set[int(q_id)].append((get_int_id(doc_id), 0))
-    return train_set
+                negatives[int(q_id)].add(get_int_id(doc_id))
+    return positives, negatives
+
+
+def get_testset(test_queries, test_positives, test_negatives):
+    testset = defaultdict(list)
+    for q_id in tqdm(test_queries):
+        for pos_doc_id in test_positives[q_id]:
+            testset[q_id].append((pos_doc_id, 1))
+        for neg_doc_id in test_negatives[q_id]:
+            testset[q_id].append((neg_doc_id, 0))
+    return testset
+
+
+def get_doc_list(q_id, top, positives, negatives):
+    result = []
+    # positives
+    for doc_id in positives[q_id]:
+        result.append((doc_id, 1))
+    # negatives
+    for doc_id in negatives[q_id]:
+        result.append((doc_id, 0))
+    # remaining negatives
+    for doc_id in top[q_id]:
+        if doc_id not in positives[q_id] and doc_id not in negatives[q_id]:
+            result.append((doc_id, 0))
+    return result
 
 
 class Antique(Dataset):
@@ -47,26 +72,48 @@ class Antique(Dataset):
                 * a mapping of test query IDs to tuples of (document ID, label)
         """
         doc_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-collection.txt')
+        print('reading {}...'.format(doc_file))
         with open(doc_file, encoding='utf-8') as fp:
             docs = {get_int_id(doc_id): doc for doc_id, doc in csv.reader(fp, delimiter='\t',
                                                                           quotechar=None)}
 
         train_queries_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-train-queries.txt')
+        print('reading {}...'.format(train_queries_file))
         train_queries = read_queries(train_queries_file)
 
         train_qrels_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-train.qrel')
-        train_set = read_train_set(train_qrels_file)
-
-        test_queries_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-test-queries.txt')
-        test_queries = read_queries(test_queries_file)
-
-        queries = train_queries.copy()
-        queries.update(test_queries)
+        print('reading {}...'.format(train_qrels_file))
+        train_positives, train_negatives = read_qrels(train_qrels_file)
 
         print('reading {}...'.format(self.args.SPLIT_FILE))
         with open(self.args.SPLIT_FILE, 'rb') as fp:
-            train_q_ids, dev_set, test_set = pickle.load(fp)
-        train_set = {q_id: train_set[q_id] for q_id in train_q_ids}
+            top, dev_q_ids = pickle.load(fp)
+        assert len(train_queries) == len(top)
+
+        train_set, dev_set = {}, {}
+        for q_id in train_queries:
+            if q_id in dev_q_ids:
+                dev_set[q_id] = get_doc_list(q_id, top, train_positives, train_negatives)
+            else:
+                train_set[q_id] = get_doc_list(q_id, top, train_positives, train_negatives)
+
+        test_queries_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-test-queries.txt')
+        print('reading {}...'.format(test_queries_file))
+        test_queries = read_queries(test_queries_file)
+
+        test_qrels_file = os.path.join(self.args.ANTIQUE_DIR, 'antique-test.qrel')
+        print('reading {}...'.format(test_qrels_file))
+        test_positives, test_negatives = read_qrels(test_qrels_file)
+
+        test_set = defaultdict(list)
+        for q_id in test_queries:
+            for doc_id in test_positives.get(q_id, []):
+                test_set[q_id].append((doc_id, 1))
+            for doc_id in test_negatives.get(q_id, []):
+                test_set[q_id].append((doc_id, 0))
+
+        queries = train_queries.copy()
+        queries.update(test_queries)
 
         return queries, docs, train_set, dev_set, test_set
 
