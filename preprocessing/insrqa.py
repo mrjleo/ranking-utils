@@ -72,7 +72,7 @@ class InsuranceQA(Dataset):
                 for pos_doc_id in pos_doc_ids:
                     train_set[q_id].append((pos_doc_id, 1))
                 for neg_doc_id in neg_doc_ids:
-                    train_set[q_id].append((pos_doc_id, 0))
+                    train_set[q_id].append((neg_doc_id, 0))
 
         print('processing {}...'.format(dev_file))
         dev_set = defaultdict(list)
