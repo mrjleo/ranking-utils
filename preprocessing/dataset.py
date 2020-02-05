@@ -184,24 +184,19 @@ class Testset(object):
     def __init__(self, queries, docs, test_set):
         self.queries = queries
         self.docs = docs
-        self.test_set = test_set
 
-    def _get_test_examples(self):
-        """Yield all test examples.
-
-        Yields:
-            tuple[int, str, str, int] -- A query ID, a query, a document and a binary label
-        """
-        for q_id, doc_ids in self.test_set.items():
-            # empty/nonexistent queries or documents will cause errors
+        self.items = []
+        # empty/nonexistent queries or documents will cause errors
+        # thus we create all items here so we know the exact number
+        for q_id, doc_ids in tqdm(test_set.items()):
             if len(self.queries[q_id]) == 0:
                 continue
             for doc_id, label in doc_ids:
                 if len(self.docs[doc_id]) > 0:
-                    yield q_id, self.queries[q_id], self.docs[doc_id], label
+                    self.items.append((q_id, self.queries[q_id], self.docs[doc_id], label))
 
     def __len__(self):
-        return sum(map(len, self.test_set.values()))
+        return len(self.items)
 
     def __iter__(self):
-        yield from self._get_test_examples()
+        yield from self.items
