@@ -32,16 +32,6 @@ def read_qrels(file_path):
     return positives, negatives
 
 
-def get_testset(test_queries, test_positives, test_negatives):
-    testset = defaultdict(list)
-    for q_id in tqdm(test_queries):
-        for pos_doc_id in test_positives[q_id]:
-            testset[q_id].append((pos_doc_id, 1))
-        for neg_doc_id in test_negatives[q_id]:
-            testset[q_id].append((neg_doc_id, 0))
-    return testset
-
-
 def get_doc_list(q_id, top, positives, negatives):
     result = []
     # positives
@@ -87,7 +77,7 @@ class Antique(Dataset):
 
         print('reading {}...'.format(self.args.SPLIT_FILE))
         with open(self.args.SPLIT_FILE, 'rb') as fp:
-            top, dev_q_ids = pickle.load(fp)
+            top, dev_q_ids, top_test = pickle.load(fp)
         assert len(train_queries) == len(top)
 
         train_set, dev_set = {}, {}
@@ -105,12 +95,9 @@ class Antique(Dataset):
         print('reading {}...'.format(test_qrels_file))
         test_positives, test_negatives = read_qrels(test_qrels_file)
 
-        test_set = defaultdict(list)
+        test_set = {}
         for q_id in test_queries:
-            for doc_id in test_positives.get(q_id, []):
-                test_set[q_id].append((doc_id, 1))
-            for doc_id in test_negatives.get(q_id, []):
-                test_set[q_id].append((doc_id, 0))
+            test_set[q_id] = get_doc_list(q_id, top_test, test_positives, test_negatives)
 
         queries = train_queries.copy()
         queries.update(test_queries)
