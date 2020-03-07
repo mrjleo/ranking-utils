@@ -218,24 +218,25 @@ def _sample_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, pred_ba
         batch_size = pos_inputs.shape[0]
         pred_batch_size = n_negs * batch_size if pred_batch_size is None else pred_batch_size
 
-        pos_scores = model(pos_inputs)
+        pos_preds = model(pos_inputs)
         # to be able to compute loss for multiple negative docs and the positive in parallel we expand the pos scores
         # since they're the same for each negative doc
-        pos_scores = pos_scores.unsqueeze(0).expand((n_negs,) + pos_scores.shape)
-        pos_scores = pos_scores.reshape((batch_size * n_negs, 1))
+        pos_preds = pos_preds.unsqueeze(0).expand((n_negs,) + pos_preds.shape)
+        pos_preds = pos_preds.reshape((batch_size * n_negs, 1))
 
         # we put all negative examples into one large batch for parallel prediction
-        all_neg_batch = torch.cat(neg_inputs, dim=0)
+        all_negs = torch.cat(neg_inputs, dim=0)
 
-        # in cases where not all negative documents fit into memory at the same time we need to compute loss for
+        # in cases where not all negative documents fit into memory at the same time we need to predict on
         # slightly smaller chunks
-        pred_batch_losses = []
+        neg_pred_chunks = []
         for i in range(0, n_negs * batch_size, pred_batch_size):
-            neg_scores = model(all_neg_batch[i:i + pred_batch_size])
-            losses = criterion(pos_scores[i:i + pred_batch_size], neg_scores)
-            pred_batch_losses.append(losses)
+            neg_pred_chunk = model(all_negs[i:i + pred_batch_size])
+            neg_pred_chunks.append(neg_pred_chunk)
 
-        losses = torch.cat(pred_batch_losses, dim=0)
+        neg_preds = torch.cat(neg_pred_chunks)
+        losses = criterion(pos_preds, neg_preds)
+
         # to get the per batch maximum loss we need to split back into batches of the original batch size
         losses = torch.split(losses, batch_size)
         losses = torch.stack(losses, dim=1)
