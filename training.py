@@ -1,12 +1,11 @@
-import os
 import csv
-import itertools
+import os
 
 import torch
 from tqdm import tqdm
 
-from qa_utils.misc import Logger
 from qa_utils.io import batches_to_device
+from qa_utils.misc import Logger
 
 
 def save_args(args_file, args):
@@ -22,6 +21,39 @@ def save_args(args_file, args):
             writer.writerow([arg, getattr(args, arg)])
 
 
+def save_checkpoint(state, epoch, ckpt_dir):
+    """Takes a dict containing training state and saves it to a checkpoint file in ckpt_dir.
+
+    Args:
+        state {dict} -- dict containing checkpoint information e.g. pytorch state dicts of model and optimizer.
+        epoch {int} -- epoch at which the state was taken.
+        ckpt_dir {str} -- path to checkpoint directory.
+    """
+    fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch))
+    torch.save(state, fname)
+
+
+def prepare_logging(args):
+    """Creates the checkpoint directory, a logger and exports the training arguments.
+
+    Args:
+        args {argparse.Namespace} -- All command line arguments
+
+    Returns:
+        logger {misc.Logger} -- Logger for working directory
+
+    """
+    ckpt_dir = os.path.join(args.working_dir, 'ckpt')
+    log_file = os.path.join(args.working_dir, 'train.csv')
+    os.makedirs(ckpt_dir, exist_ok=True)
+    logger = Logger(log_file, ['epoch', 'loss'])
+
+    args_file = os.path.join(args.working_dir, 'args.csv')
+    save_args(args_file, args)
+
+    return logger, ckpt_dir
+
+
 def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after each epoch and log the loss in
     a file.
@@ -34,13 +66,7 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
     Keyword Arguments:
         has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
     """
-    ckpt_dir = os.path.join(args.working_dir, 'ckpt')
-    log_file = os.path.join(args.working_dir, 'train.csv')
-    os.makedirs(ckpt_dir, exist_ok=True)
-    logger = Logger(log_file, ['epoch', 'loss'])
-
-    args_file = os.path.join(args.working_dir, 'args.csv')
-    save_args(args_file, args)
+    logger, ckpt_dir = prepare_logging(args)
 
     criterion = torch.nn.BCEWithLogitsLoss()
     model.train()
@@ -65,8 +91,7 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
 
         state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict(),
                  'optimizer': optimizer.state_dict()}
-        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch))
-        torch.save(state, fname)
+        save_checkpoint(state, epoch, ckpt_dir)
 
 
 def train_model_multi_bce(model, train_dl, optimizers, args, device):
@@ -79,13 +104,7 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
     """
-    ckpt_dir = os.path.join(args.working_dir, 'ckpt')
-    log_file = os.path.join(args.working_dir, 'train.csv')
-    os.makedirs(ckpt_dir, exist_ok=True)
-    logger = Logger(log_file, ['epoch', 'loss'])
-
-    args_file = os.path.join(args.working_dir, 'args.csv')
-    save_args(args_file, args)
+    logger, ckpt_dir = prepare_logging(args)
 
     # load BERT weights
     if args.bert_weights is not None:
@@ -123,5 +142,4 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
         state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict()}
         for i, optimizer in enumerate(optimizers):
             state['optimizer_{}'.format(i)] = optimizer.state_dict()
-        fname = os.path.join(ckpt_dir, 'weights_{:03d}.pt'.format(epoch))
-        torch.save(state, fname)
+        save_checkpoint(state, epoch, ckpt_dir)
