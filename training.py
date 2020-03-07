@@ -151,7 +151,8 @@ def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
 
     Args:
         model {torch.nn.Module} -- the model to train
-        criterion {function} -- a pairwise loss function
+        criterion {function} -- a pairwise loss function. It is expected to handle reduction, e.g. average over the
+        batch.
         train_dl {torch.utils.data.DataLoader} -- Train dataloader that yields a positive and a list of
         negative inputs with each input being a batch of examples.
         optimizer {list[torch.optim.Optimizer]} -- Optimizer
@@ -177,8 +178,7 @@ def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
             pos_scores = model(pos_inputs)
             neg_scores = model(max_neg_inputs)
 
-            batch_losses = criterion(pos_scores, neg_scores)
-            loss = torch.mean(batch_losses)
+            loss = criterion(pos_scores, neg_scores)
             loss = loss / args.accumulate_batches
             loss_sum += loss.item()
 
