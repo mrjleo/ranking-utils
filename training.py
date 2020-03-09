@@ -151,8 +151,7 @@ def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
 
     Args:
         model {torch.nn.Module} -- the model to train
-        criterion {function} -- a pairwise loss function. It is expected to handle reduction, e.g. average over the
-        batch.
+        criterion {function} -- a pairwise loss function. Mean reduction is being applied during training.
         train_dl {torch.utils.data.DataLoader} -- Train dataloader that yields a positive and a list of
         negative inputs with each input being a batch of examples.
         optimizer {list[torch.optim.Optimizer]} -- Optimizer
@@ -208,7 +207,7 @@ def _sample_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, pred_ba
 
     Args:
         model {torch.nn.Module} -- model for computing the pairwise loss based on its predictions.
-        criterion {} -- a pairwise loss function accepting the models predictions on `pos_inputs` and `neg_inputs` as
+        criterion {function} -- a pairwise loss function accepting the models predictions on `pos_inputs` and `neg_inputs` as
         inputs.
         pos_inputs {torch.Tensor or list(torch.Tensor)} -- batch of positive examples to feed into `model`.
         neg_inputs {list(torch.Tensor) or list(list(torch.Tensor))} -- list of batches containing negative examples to
