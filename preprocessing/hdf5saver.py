@@ -12,8 +12,16 @@ class Hdf5Saver(ABC):
     """Saves a dataset to hdf5 format.
     """
 
-    def __init__(self, dataset: Dataset, tokenizer, max_vocab_size, vocab_outfile, train_outfile=None, dev_outfile=None,
-                 test_outfile=None):
+    def __init__(self,
+                 dataset: Dataset,
+                 tokenizer,
+                 max_vocab_size,
+                 vocab_outfile,
+                 train_outfile=None,
+                 dev_outfile=None,
+                 test_outfile=None,
+                 max_doc_len=None,
+                 max_query_len=None):
         """Construct a h5py saver object. Each dataset that has no output path specified will be ignored, meaning at
         least one output path must be provided.
 
@@ -23,6 +31,9 @@ class Hdf5Saver(ABC):
             dev_outfile: path to the hdf5 output file for the dev set.
             test_outfile: path to the hdf5 output file for the test set.
         """
+        self.max_doc_len = max_doc_len
+        self.max_query_len = max_query_len
+
         self.dataset = dataset
         self.tokenizer = tokenizer
         self.max_vocab_size = max_vocab_size
@@ -39,13 +50,19 @@ class Hdf5Saver(ABC):
 
         # tokenize dataset
         self._build_vocab()
-        print('tokenizing...')
-        self.dataset.transform_docs(lambda x: self._words_to_index(self.tokenizer.tokenize(x)))
-        self.dataset.transform_queries(lambda x: self._words_to_index(self.tokenizer.tokenize(x)))
 
-    def build_all(self):
+    def build_all(self, tokenize_before=True):
         """Exports each split of dataset to hdf5 if an output file was specified for it.
+        Args:
+            tokenize_before (bool): whether to apply the tokenizer to all queries and documents before saving.
         """
+        if tokenize_before:
+            print('tokenizing...')
+            self.dataset.transform_docs(
+                lambda x: self._words_to_index(self.tokenizer.tokenize(x)[:self.max_query_len]))
+            self.dataset.transform_queries(
+                lambda x: self._words_to_index(self.tokenizer.tokenize(x)[:self.max_doc_len]))
+
         if self.train_out:
             self._save_train_set()
         if self.test_out:
