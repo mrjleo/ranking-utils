@@ -59,9 +59,9 @@ class Hdf5Saver(ABC):
         if tokenize_before:
             print('tokenizing...')
             self.dataset.transform_docs(
-                lambda x: self._words_to_index(self.tokenizer.tokenize(x)[:self.max_query_len]))
-            self.dataset.transform_queries(
                 lambda x: self._words_to_index(self.tokenizer.tokenize(x)[:self.max_doc_len]))
+            self.dataset.transform_queries(
+                lambda x: self._words_to_index(self.tokenizer.tokenize(x)[:self.max_query_len]))
 
         if self.train_out:
             self._save_train_set()
