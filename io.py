@@ -27,17 +27,35 @@ def dump_pkl_file(obj, filepath):
         pickle.dump(obj, fp)
 
 
-def batches_to_device(batch, device):
+def list_to(device, x):
     """Take a multi input batch and send it to a pytorch device.
 
     Arguments:
-        batch {Iterable[torch.Tensor]} -- A list of single input batches
-        device {torch.device} -- a pytorch device to send the batch to
+        device {torch.device} -- a pytorch device to send the list to
+        x {list(torch.Tensor)} -- A list of single input batches
 
     Returns:
         list[torch.Tensor] -- The tensors
     """
-    return [y.to(device) for y in batch if y is not None]
+    return [y.to(device) for y in x if y is not None]
+
+
+def list_or_tensor_to(device, x):
+    """Sends a tensor or a list of tensors to `device`
+
+    Args:
+        Arguments:
+        device {torch.device} -- a pytorch device to send the list to
+        x {list(torch.Tensor) or torch.Tensor} -- A list of single input batches
+
+    Returns:
+
+    """
+    if isinstance(x, list):
+        return list_to(device, x)
+    elif isinstance(x, torch.Tensor):
+        return x.to(device)
+    raise TypeError(f'{type(x)} is not supported for sending to a pytorch device.')
 
 
 def get_cuda_device():
