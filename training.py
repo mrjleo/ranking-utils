@@ -10,8 +10,9 @@ from qa_utils.misc import Logger
 
 def save_args(args_file, args):
     """Save all arguments in a file.
+
     Arguments:
-        args_file {str} -- The .csv file to save
+        args_file {str} -- The csv file to save
         args {argparse.Namespace} -- Command line arguments
     """
     print('writing {}...'.format(args_file))
@@ -24,7 +25,7 @@ def save_args(args_file, args):
 def save_checkpoint(state, epoch, ckpt_dir):
     """Takes a dict containing training state and saves it to a checkpoint file in ckpt_dir.
 
-    Args:
+    Arguments:
         state {dict} -- dict containing checkpoint information e.g. pytorch state dicts of model and optimizer.
         epoch {int} -- epoch at which the state was taken.
         ckpt_dir {str} -- path to checkpoint directory.
@@ -36,12 +37,11 @@ def save_checkpoint(state, epoch, ckpt_dir):
 def prepare_logging(args):
     """Creates the checkpoint directory, a logger and exports the training arguments.
 
-    Args:
+    Arguments:
         args {argparse.Namespace} -- All command line arguments
 
     Returns:
-        logger {misc.Logger} -- Logger for working directory
-
+        tuple[misc.Logger, str] -- A logger and the working directory
     """
     ckpt_dir = os.path.join(args.working_dir, 'ckpt')
     log_file = os.path.join(args.working_dir, 'train.csv')
@@ -57,12 +57,14 @@ def prepare_logging(args):
 def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_inputs=False):
     """Train a model using binary cross entropy. Save the model after each epoch and log the loss in
     a file.
+
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
         optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
+
     Keyword Arguments:
         has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
     """
@@ -97,6 +99,7 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
 def train_model_multi_bce(model, train_dl, optimizers, args, device):
     """Train a model with multiple outputs using binary cross entropy. Save the model after each
     epoch and log the loss in a file.
+
     Arguments:
         model {torch.nn.Module} -- The model to train
         train_dl {torch.utils.data.DataLoader} -- Train dataloader
@@ -145,23 +148,24 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
         save_checkpoint(state, epoch, ckpt_dir)
 
 
-def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
-    """Trains a model in pairwise fashion by sampling negative examples with the highest loss from a list of sampled
-    negative examples.
+def train_model_pairwise(model, criterion, train_dl, optimizer, args, device,
+                         num_neg_examples, has_multiple_inputs=False):
+    """Train a model using a pairwise ranking loss. For each positive example, calculate the loss
+    with a number of negative examples and update the weights only using the highest loss.
 
-    Args:
-        model {torch.nn.Module} -- the model to train
-        criterion {function} -- a pairwise loss function. Mean reduction is being applied during training.
-        train_dl {torch.utils.data.DataLoader} -- Train dataloader that yields a positive and a list of
-        negative inputs with each input being a batch of examples.
-        optimizer {list[torch.optim.Optimizer]} -- Optimizer
+    Arguments:
+        model {torch.nn.Module} -- The model to train
+        criterion {function} -- Pairwise loss function
+        train_dl {torch.utils.data.DataLoader} -- Train DataLoader
+        optimizer {torch.optim.Optimizer} -- Optimizer
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
+        num_neg_examples {int} -- Number of negative examples per query
+
+    Keyword Arguments:
+        has_multiple_inputs {bool} -- Whether the input is a a list of tensors (default: {False})
     """
     logger, ckpt_dir = prepare_logging(args)
-
-    args_file = os.path.join(args.working_dir, 'args.csv')
-    save_args(args_file, args)
 
     model.train()
     for epoch in range(args.epochs):
@@ -169,12 +173,12 @@ def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
         loss_sum = 0
         for i, batch in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
             pos_inputs, neg_inputs = batch
-            has_multiple_inputs = isinstance(pos_inputs, list)
 
             pos_inputs = list_or_tensor_to(device, pos_inputs)
-            neg_inputs = [list_or_tensor_to(device, batch) for batch in neg_inputs]
+            neg_inputs = [list_or_tensor_to(device, x) for x in neg_inputs]
 
-            max_neg_inputs = _sample_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, args.pred_batch_size)
+            max_neg_inputs = _get_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs,
+                                                     num_neg_examples, has_multiple_inputs)
 
             if has_multiple_inputs:
                 pos_scores = model(*pos_inputs)
@@ -201,80 +205,54 @@ def train_model_pairwise(model, criterion, train_dl, optimizer, args, device):
         save_checkpoint(state, epoch, ckpt_dir)
 
 
-def _sample_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, pred_batch_size=None):
-    """Helper function for sampling negative examples with highest pairwise loss from a list of batches with negative
-    input examples. If the inputs are sequences, all batches are assumed to be padded to the same length.
+def _get_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, num_neg_examples,
+                            has_multiple_inputs):
+    """Helper function for finding negative examples with highest pairwise loss from a list of
+    batches with negative input examples. If the inputs are sequences, all batches are assumed to be
+    padded to the same length.
 
-    Args:
-        model {torch.nn.Module} -- model for computing the pairwise loss based on its predictions.
-        criterion {function} -- a pairwise loss function accepting the models predictions on `pos_inputs` and `neg_inputs` as
-        inputs.
-        pos_inputs {torch.Tensor or list(torch.Tensor)} -- batch of positive examples to feed into `model`.
-        neg_inputs {list(torch.Tensor) or list(list(torch.Tensor))} -- list of batches containing negative examples to
-        feed into the model.
-        predict_batch_size {int} -- the maximum number of examples to run through the model in parallel when predicting.
-        defaults to batch_size * len(neg_inputs) which might not fit on GPU depending on model size.
+    Arguments:
+        model {torch.nn.Module} -- Model for computing the pairwise loss based on its predictions
+        criterion {function} -- Pairwise loss function
+        pos_inputs {torch.Tensor or list[torch.Tensor]} -- Batch of positive examples
+        neg_inputs {list[torch.Tensor] or list[list[torch.Tensor]]} -- Batches of negative examples
+        num_neg_examples {int} -- Number of negative examples per query
+        has_multiple_inputs {bool} -- Whether the input is a a list of tensors
 
     Returns:
-        neg_batch {list(torch.Tensor)} -- batch containing the negative examples with maximum loss along dimension 1 of
-        `neg_inputs`.
-
+        list[torch.Tensor] -- Negative examples with maximum loss along dimension 1
     """
     with torch.no_grad():
-        n_negs = len(neg_inputs)
-        has_multiple_inputs = isinstance(pos_inputs, list)
-        num_inputs = len(pos_inputs)
-
-        batch_size = pos_inputs[0].shape[0] if has_multiple_inputs else pos_inputs.shape[0]
-        pred_batch_size = n_negs * batch_size if pred_batch_size is None else pred_batch_size
-
-        pos_preds = model(*pos_inputs) if has_multiple_inputs else model(pos_inputs)
-        # to be able to compute loss for multiple negative docs and the positive in parallel we expand the pos scores
+        if has_multiple_inputs:
+            pos_scores = model(*pos_inputs)
+        else:
+            pos_scores = model(pos_inputs)
+        # to be able to compute loss for negative positive docs in parallel we repeat the pos scores
         # since they're the same for each negative doc
-        pos_preds = pos_preds.unsqueeze(0).expand((n_negs,) + pos_preds.shape)
-        pos_preds = pos_preds.reshape((batch_size * n_negs, 1))
+        pos_scores = pos_scores.repeat_interleave(num_neg_examples, dim=0)
 
         if has_multiple_inputs:
-            neg_batch_preds = []
-            for neg_batch in neg_inputs:
-                neg_batch_preds.append(model(*neg_batch))
-
-            neg_preds = torch.cat(neg_batch_preds)
+            neg_scores = model(*[torch.cat(x) for x in neg_inputs])
         else:
-            # we put all negative examples into one large batch for parallel prediction
-            all_negs = torch.cat(neg_inputs, dim=0)
+            neg_scores = model(torch.cat(neg_inputs))
 
-            # in cases where not all negative documents fit into memory at the same time we need to predict on
-            # slightly smaller chunks
-            neg_pred_chunks = []
-            for i in range(0, n_negs * batch_size, pred_batch_size):
-                neg_pred_chunk = model(all_negs[i:i + pred_batch_size])
-                neg_pred_chunks.append(neg_pred_chunk)
+        losses = criterion(pos_scores, neg_scores).squeeze(1)
+        # split the tensor in tuples corresponding to each positive example
+        losses = torch.split(losses, num_neg_examples)
 
-            neg_preds = torch.cat(neg_pred_chunks)
-
-        losses = criterion(pos_preds, neg_preds)
-        # to get the per batch maximum loss we need to split back into batches of the original batch size
-        losses = torch.split(losses, batch_size)
-        losses = torch.stack(losses, dim=1)
-
-        # index of the highest loss negative inputs for each row in the batch,
-        # i.e. a mapping from batch idx to neg input idx
+        # index of the highest loss negative inputs for each row in the batch
+        losses = torch.stack(losses)
         max_loss_ids = torch.argmax(losses, dim=1)
 
-        max_loss_batch = []
+        # we return the inputs corresponding to the IDs with the highest losses
         if has_multiple_inputs:
-            max_inputs = [[] for _ in range(num_inputs)]
-            for i in range(num_inputs):
+            max_neg_inputs = [[] for _ in range(len(neg_inputs))]
+            for i in range(len(neg_inputs)):
                 for j, idx in enumerate(max_loss_ids):
-                    doc_batch = neg_inputs[idx]
-                    max_inputs[i].append(doc_batch[i][j])
+                    max_neg_inputs[i].append(neg_inputs[i][j][idx])
+            return [torch.stack(x) for x in max_neg_inputs]
 
-            max_inputs = [torch.stack(x) for x in max_inputs]
-            return max_inputs
-
-        for j, idx in enumerate(max_loss_ids):
-            max_input = neg_inputs[idx][j]
-            max_loss_batch.append(max_input)
-
-        return torch.stack(max_loss_batch)
+        max_neg_inputs = []
+        for i, idx in enumerate(max_loss_ids):
+            max_neg_inputs.append(neg_inputs[i][idx])
+        return torch.stack(max_neg_inputs)
