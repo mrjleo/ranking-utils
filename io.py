@@ -28,11 +28,11 @@ def dump_pkl_file(obj, filepath):
 
 
 def list_to(device, x):
-    """Take a multi input batch and send it to a pytorch device.
+    """Send a list of tensors to a device.
 
     Arguments:
-        device {torch.device} -- a pytorch device to send the list to
-        x {list(torch.Tensor)} -- A list of single input batches
+        device {torch.device} -- The device
+        x {list[torch.Tensor]} -- A list of single input batches
 
     Returns:
         list[torch.Tensor] -- The tensors
@@ -41,21 +41,21 @@ def list_to(device, x):
 
 
 def list_or_tensor_to(device, x):
-    """Sends a tensor or a list of tensors to `device`
+    """Send a tensor or a list of tensors to a device.
 
     Args:
         Arguments:
-        device {torch.device} -- a pytorch device to send the list to
-        x {list(torch.Tensor) or torch.Tensor} -- A list of single input batches
+        device {torch.device} -- The device
+        x {list[torch.Tensor] or torch.Tensor} -- Input tensor(s)
 
     Returns:
-
+        list[torch.Tensor] or torch.Tensor -- The tensor(s)
     """
     if isinstance(x, list):
         return list_to(device, x)
     elif isinstance(x, torch.Tensor):
         return x.to(device)
-    raise TypeError(f'{type(x)} is not supported for sending to a pytorch device.')
+    raise TypeError('{} is not supported for sending to a pytorch device.'.format(type(x)))
 
 
 def get_cuda_device():
