@@ -3,12 +3,12 @@ from abc import abstractmethod, ABC
 import h5py
 from tqdm import tqdm
 
-from qa_utils.io import dump_pkl_file
+from qa_utils.io import dump_pkl_file, dump_json_file
 from qa_utils.preprocessing.dataset import Dataset
 from qa_utils.text import build_vocab
 
 
-class Hdf5Saver(ABC):
+class BaseHdf5Saver(ABC):
     """Saves a dataset to hdf5 format.
     """
 
@@ -70,6 +70,8 @@ class Hdf5Saver(ABC):
         if self.dev_out:
             self._save_candidate_set('dev')
 
+        [file.close() for file in [self.train_out, self.dev_out, self.test_out]]
+
     def _save_candidate_set(self, split):
         """Saves a candidate type set i.e. Dataset.testset or Dataset.devset to hdf5.
 
@@ -92,8 +94,8 @@ class Hdf5Saver(ABC):
         """
         print("saving", self.train_outpath, "...")
         self._define_trainset(self.train_out, self._n_out_samples(self.dataset.trainset))
-        idx = 0
 
+        idx = 0
         for query, pos_doc, neg_docs in tqdm(self.dataset.trainset):
             self._save_train_row(self.train_out, query, pos_doc, neg_docs, idx)
             idx += 1
@@ -103,7 +105,7 @@ class Hdf5Saver(ABC):
         collection = list(self.dataset.queries.values()) + list(self.dataset.docs.values())
         self.word_to_index = build_vocab(collection, self.tokenizer, max_vocab_size=self.max_vocab_size)
         self.index_to_word = {v: k for k, v in self.word_to_index.items()}
-        dump_pkl_file(self.index_to_word, self.vocab_outfile)
+        dump_json_file(self.index_to_word, self.vocab_outfile)
 
     def _words_to_index(self, words, unknown_token='<UNK>'):
         """Turns a list of words into integer indices using self.word_to_index.
@@ -159,7 +161,14 @@ class Hdf5Saver(ABC):
         a hdf5 file as defined in _define_trainset().
 
         Args:
-            *args: the transformed row returned by _transform_train_row.
+            fp:
+            query:
+            pos_doc:
+            neg_docs:
+            idx:
+
+        Returns:
+
         """
 
     @abstractmethod
@@ -168,5 +177,13 @@ class Hdf5Saver(ABC):
         _transform_candidate_row. It's saved a hdf5 file as defined in _define_candidate_set().
 
         Args:
-            *args: he transformed row returned by _transform_candidate_row.
+            fp:
+            q_id:
+            query:
+            doc:
+            label:
+            idx:
+
+        Returns:
+
         """

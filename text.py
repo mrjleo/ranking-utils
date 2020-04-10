@@ -31,8 +31,7 @@ def build_vocab(collection, tokenizer, special_tokens=('<PAD>', '<UNK>', '<START
         collection {Iterable(str)} -- iterable of strings to generate vocabulary from.
         tokenizer {Tokenizer} -- tokenizer that needs to provide a tokenize() method.
         special_tokens {tuple(str)} -- list of special tokens to add to the vocabulary. They will be assigned to ids in
-        the range from
-        0 - len(special_tokens)-1.
+        the range from 0 - len(special_tokens)-1.
         max_vocab_size {int} -- maximum number of words in the vocabulary, only keeping the most frequent words. Uses
         all words if None.
 

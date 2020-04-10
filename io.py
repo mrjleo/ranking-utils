@@ -1,3 +1,4 @@
+import json
 import pickle
 
 import torch
@@ -25,6 +26,30 @@ def dump_pkl_file(obj, filepath):
     """
     with open(filepath, 'wb') as fp:
         pickle.dump(obj, fp)
+
+
+def load_json_file(filepath):
+    """Load the contents of a json file into a python dict.
+
+            Arguments:
+                filepath {str} -- path to the json file to load
+
+            Returns:
+                object -- the object stored in the json file
+            """
+    with open(filepath, 'rb') as json_fp:
+        return json.load(json_fp)
+
+
+def dump_json_file(obj, filepath):
+    """Dump an object into a json file.
+
+        Arguments:
+            obj {object} -- object to convert to json
+            filepath {str} -- destination path for the json file
+        """
+    with open(filepath, 'w', encoding='utf8') as fp:
+        json.dump(obj, fp)
 
 
 def list_to(device, x):
