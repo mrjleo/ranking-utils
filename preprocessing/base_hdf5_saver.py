@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 import h5py
 from tqdm import tqdm
 
-from qa_utils.io import dump_pkl_file, dump_json_file
+from qa_utils.io import dump_json_file
 from qa_utils.preprocessing.dataset import Dataset
 from qa_utils.text import build_vocab
 
@@ -26,10 +26,10 @@ class BaseHdf5Saver(ABC):
         least one output path must be provided.
 
         Args:
-            dataset: Dataset to save to hdf5.
-            train_outfile: path to the hdf5 output file for the train set.
-            dev_outfile: path to the hdf5 output file for the dev set.
-            test_outfile: path to the hdf5 output file for the test set.
+            dataset {Dataset} -- Dataset to save to hdf5.
+            train_outfile {str} -- path to the hdf5 output file for the train set.
+            dev_outfile {str} -- path to the hdf5 output file for the dev set.
+            test_outfile {str} -- path to the hdf5 output file for the test set.
         """
         self.max_doc_len = max_doc_len
         self.max_query_len = max_query_len
@@ -47,14 +47,12 @@ class BaseHdf5Saver(ABC):
         assert any(out_paths), 'you need to specify at least one output filepath.'
         self.train_out, self.dev_out, self.test_out = (h5py.File(fpath, 'w') if fpath else None for fpath in
                                                        out_paths)
-
-        # tokenize dataset
         self._build_vocab()
 
     def build_all(self, tokenize_before=True):
         """Exports each split of dataset to hdf5 if an output file was specified for it.
         Args:
-            tokenize_before (bool): whether to apply the tokenizer to all queries and documents before saving.
+            tokenize_before {bool} -- whether to apply tokenization to all queries and documents before saving.
         """
         if tokenize_before:
             print('tokenizing...')
@@ -76,7 +74,7 @@ class BaseHdf5Saver(ABC):
         """Saves a candidate type set i.e. Dataset.testset or Dataset.devset to hdf5.
 
         Args:
-            split (str): either 'dev' or 'test'.
+            split {str} -- either 'dev' or 'test'.
 
         """
         fp, dataset = (self.dev_out, self.dataset.devset) if split == 'dev' else (self.test_out, self.dataset.testset)
@@ -108,13 +106,13 @@ class BaseHdf5Saver(ABC):
         dump_json_file(self.index_to_word, self.vocab_outfile)
 
     def _words_to_index(self, words, unknown_token='<UNK>'):
-        """Turns a list of words into integer indices using self.word_to_index.
+        """Turns a list of word tokens into integer indices.
 
         Args:
-            words (list(str)): list of words.
+            words {list[str]} -- list of words.
 
         Returns:
-            list(int): a list if integers encoding words.
+            {list[int]} -- a list of integer tokens.
         """
         tokens = []
         for token in words:
@@ -130,8 +128,8 @@ class BaseHdf5Saver(ABC):
         """Specify the structure of the hdf5 output file.
 
         Args:
-            dataset_fp: file pointer to the hdf5 output file.
-            n_out_examples: number of examples that will be generated for this dataset.
+            dataset_fp {} -- file pointer to the hdf5 output file.
+            n_out_examples {} -- number of examples that will be generated for this dataset.
         """
 
     @abstractmethod
@@ -139,8 +137,8 @@ class BaseHdf5Saver(ABC):
         """Specify the structure of the hdf5 output file for candidate type sets.
 
         Args:
-            dataset_fp: file pointer to the hdf5 output file.
-            n_out_examples: number of examples that will be generated for this dataset.
+            dataset_fp {h5py.File} -- file pointer to the hdf5 output file.
+            n_out_examples {int} -- number of examples that will be generated for this dataset.
         """
 
     @abstractmethod
@@ -148,42 +146,34 @@ class BaseHdf5Saver(ABC):
         """Computes the number of output examples generated for either train, test or dev set.
 
         Args:
-            dataset: either Trainset or Testset from qa_utils.
+            dataset {Dataset} -- the dataset to compute the number of output examples from.
 
         Returns:
-            int: number of total output samples.
+            {int} -- number of total output samples.
 
         """
 
     @abstractmethod
     def _save_train_row(self, fp, query, pos_doc, neg_docs, idx):
-        """The function that saves an item from the Dataset.trainset after applying _transform_train_row. It's saved to
-        a hdf5 file as defined in _define_trainset().
+        """Save an example to the hdf5 train file.
 
         Args:
-            fp:
-            query:
-            pos_doc:
-            neg_docs:
-            idx:
-
-        Returns:
+            fp {h5py.File} -- file handle for the h5py file to save the row to
+            query {list[int]} -- the query to save
+            pos_doc {list[int]} -- the positive example document to save
+            neg_docs {list[int]} -- a list of negative example documents to save
+            idx {int} -- the row index to save the item to
 
         """
 
     @abstractmethod
     def _save_candidate_row(self, fp, q_id, query, doc, label, idx):
-        """The function that saves an item from the Dataset.devset or Dataset.trainset after applying
-        _transform_candidate_row. It's saved a hdf5 file as defined in _define_candidate_set().
+        """Save an example to a hdf5 candidate (e.g. dev or test) file.
 
         Args:
-            fp:
-            q_id:
-            query:
-            doc:
-            label:
-            idx:
-
-        Returns:
+            fp {h5py.File} -- file handle for the h5py file to save the row to.
+            query {list[int]} -- the query to save
+            doc {list[int]} -- the document that will be matched with the query
+            idx {int} -- the row index to save the item to
 
         """
