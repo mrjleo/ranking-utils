@@ -2,8 +2,10 @@ import csv
 import os
 
 import torch
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from cached_dataset import DatasetCache
 from qa_utils.io import list_to, list_or_tensor_to
 from qa_utils.misc import Logger
 
@@ -256,3 +258,65 @@ def _get_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, num_neg_ex
         for i, idx in enumerate(max_loss_ids):
             max_neg_inputs.append(neg_inputs[i][idx])
         return torch.stack(max_neg_inputs)
+
+
+def train_model_with_cache(model, cache_model, dl, criterion, optimizer, device, cache_path, cache_specs, args):
+    """Build a cache during the first epoch and train
+
+    Args:
+        model:
+        cache_model: 
+        dl:
+        criterion:
+        optimizer:
+        device:
+        cache_path:
+        cache_specs:
+        args:
+
+    Returns:
+
+    """
+    logger, ckpt_dir = prepare_logging(args)
+
+    cache = DatasetCache(cache_path, cache_specs, False)
+    load_from_cache = False
+
+    model.train()
+    for epoch in range(args.epochs):
+        optimizer.zero_grad()
+        loss_sum = 0
+        if epoch == 1:
+            cache = DatasetCache(cache_path, cache_specs, True)
+            dl = DataLoader(cache, args.batch_size, pin_memory=True)
+            load_from_cache = True
+            model = cache_model
+            model.train()
+
+        for i, (inputs, labels) in enumerate(tqdm(dl, total=len(dl))):
+            inputs = list_or_tensor_to(device, inputs)
+            labels = labels.to(device)
+            if not load_from_cache:
+                outputs_to_cache, output = model(inputs)
+                outputs_np = [output.cpu() for output in outputs_to_cache]
+                outputs_np.append(labels.cpu())
+
+                for k in range(len(labels)):
+                    cache_row = {name: outputs_np[j][k] for j, name in enumerate(cache.dataset_names)}
+                    cache.add_to_cache(cache_row)
+            else:
+                output = model(*inputs)
+
+            loss = criterion(output, labels) / args.accumulate_batches
+            loss_sum += loss.item()
+            loss.backward()
+            if (i + 1) % args.accumulate_batches == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+
+        epoch_loss = loss_sum / len(dl)
+        logger.log([epoch, epoch_loss])
+
+        state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict(),
+                 'optimizer': optimizer.state_dict()}
+        save_checkpoint(state, epoch, ckpt_dir)
