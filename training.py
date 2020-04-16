@@ -327,10 +327,9 @@ def train_model_with_cache(model, get_submodel_fn, dl, criterion, optimizer, dev
 
 def train_model_pairwise_with_cache(model, get_submodel_fn, criterion, dl, optimizer, cache_path, pos_cache_spec,
                                     neg_cache_spec, args, device, num_neg_examples):
-    """Train a model pariwise and cache intermediate outputs during first epoch.
+    """Train a model pairwise and cache intermediate outputs during first epoch.
 
     Args:
-        Args:
         model {torch.nn.Module} -- model to train
         get_submodel_fn {function} -- function to extract part of the model that will be trained on the cached data.
         dl {torch.utils.data.DataLoader} -- dataloader for training
