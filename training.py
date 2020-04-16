@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from cached_dataset import DatasetCache
+from cached_dataset import DatasetCache, PairwiseDatasetCache
 from qa_utils.io import list_to, list_or_tensor_to
 from qa_utils.misc import Logger
 
@@ -260,29 +260,29 @@ def _get_max_loss_neg_batch(model, criterion, pos_inputs, neg_inputs, num_neg_ex
         return torch.stack(max_neg_inputs)
 
 
-def train_model_with_cache(model, cache_model, dl, criterion, optimizer, device, cache_path, cache_specs, args):
-    """Build a cache during the first epoch and train
+def train_model_with_cache(model, get_submodel_fn, dl, criterion, optimizer, device, cache_path, cache_specs, args):
+    """Build a cache from intermediate model outputs during the first epoch and train the remaining part of the model
+    on these cached outputs.
 
     Args:
-        model:
-        cache_model: 
-        dl:
-        criterion:
-        optimizer:
-        device:
-        cache_path:
-        cache_specs:
-        args:
-
-    Returns:
+        model {torch.nn.Module} -- model to train
+        get_submodel_fn {function} -- function to extract part of the model that will be trained on the cached data.
+        dl {torch.utils.data.DataLoader} -- dataloader for training
+        criterion {function} -- the criterion to optimize for
+        optimizer {torch.optim.Optimizer} -- optimizer
+        device {torch.device} -- torch device to train on
+        cache_path {str} -- path to file for caching
+        cache_specs {tuple} -- list of 3-tuples each specifying (name, shape, dtype) of an input to cache. The last entry is
+        expected to be the label specification.
+        args {argparse.Namespace} -- cli arguments
 
     """
     logger, ckpt_dir = prepare_logging(args)
-
     cache = DatasetCache(cache_path, cache_specs, False)
     load_from_cache = False
+    cur_model = model
 
-    model.train()
+    cur_model.train()
     for epoch in range(args.epochs):
         optimizer.zero_grad()
         loss_sum = 0
@@ -290,14 +290,14 @@ def train_model_with_cache(model, cache_model, dl, criterion, optimizer, device,
             cache = DatasetCache(cache_path, cache_specs, True)
             dl = DataLoader(cache, args.batch_size, pin_memory=True)
             load_from_cache = True
-            model = cache_model
-            model.train()
+            cur_model = get_submodel_fn(model)
+            cur_model.train()
 
         for i, (inputs, labels) in enumerate(tqdm(dl, total=len(dl))):
             inputs = list_or_tensor_to(device, inputs)
             labels = labels.to(device)
             if not load_from_cache:
-                outputs_to_cache, output = model(inputs)
+                outputs_to_cache, output = cur_model(inputs, return_cache_out=True)
                 outputs_np = [output.cpu() for output in outputs_to_cache]
                 outputs_np.append(labels.cpu())
 
@@ -305,7 +305,7 @@ def train_model_with_cache(model, cache_model, dl, criterion, optimizer, device,
                     cache_row = {name: outputs_np[j][k] for j, name in enumerate(cache.dataset_names)}
                     cache.add_to_cache(cache_row)
             else:
-                output = model(*inputs)
+                output = cur_model(*inputs)
 
             loss = criterion(output, labels) / args.accumulate_batches
             loss_sum += loss.item()
