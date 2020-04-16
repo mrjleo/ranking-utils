@@ -280,6 +280,7 @@ def train_model_with_cache(model, get_submodel_fn, dl, criterion, optimizer, dev
     logger, ckpt_dir = prepare_logging(args)
     cache = DatasetCache(cache_path, cache_specs, False)
     load_from_cache = False
+    # we keep a reference to the original model for checkpoint saving
     cur_model = model
 
     cur_model.train()
@@ -287,9 +288,11 @@ def train_model_with_cache(model, get_submodel_fn, dl, criterion, optimizer, dev
         optimizer.zero_grad()
         loss_sum = 0
         if epoch == 1:
+            # we now load our data from the cache
             cache = DatasetCache(cache_path, cache_specs, True)
             dl = DataLoader(cache, args.batch_size, pin_memory=True)
             load_from_cache = True
+            # and extract the part of the model to train on the cached data
             cur_model = get_submodel_fn(model)
             cur_model.train()
 
@@ -300,7 +303,7 @@ def train_model_with_cache(model, get_submodel_fn, dl, criterion, optimizer, dev
                 outputs_to_cache, output = cur_model(inputs, return_cache_out=True)
                 outputs_np = [output.cpu() for output in outputs_to_cache]
                 outputs_np.append(labels.cpu())
-
+                # save to cache
                 for k in range(len(labels)):
                     cache_row = {name: outputs_np[j][k] for j, name in enumerate(cache.dataset_names)}
                     cache.add_to_cache(cache_row)
@@ -347,6 +350,7 @@ def train_model_pairwise_with_cache(model, get_submodel_fn, criterion, dl, optim
 
     cache = PairwiseDatasetCache(cache_path, pos_cache_spec, neg_cache_spec, False)
     load_from_cache = False
+    # we keep a reference to the original model for checkpoint saving
     cur_model = model
 
     cur_model.train()
@@ -354,9 +358,11 @@ def train_model_pairwise_with_cache(model, get_submodel_fn, criterion, dl, optim
         optimizer.zero_grad()
         loss_sum = 0
         if epoch == 1:
+            # we now load our data from the cache
             cache = PairwiseDatasetCache(cache_path, pos_cache_spec, neg_cache_spec, True)
             dl = DataLoader(cache, args.batch_size, pin_memory=True)
             load_from_cache = True
+            # and extract the part of the model to train on the cached data
             cur_model = get_submodel_fn(model)
             cur_model.train()
 
@@ -372,7 +378,7 @@ def train_model_pairwise_with_cache(model, get_submodel_fn, criterion, dl, optim
 
                 pos_outputs_to_cache, pos_scores = cur_model(pos_inputs, return_cache_out=True)
                 neg_outputs_to_cache, neg_scores = cur_model(max_neg_inputs, return_cache_out=True)
-
+                # save to cache
                 outputs_np = [output.cpu() for output in pos_outputs_to_cache + neg_outputs_to_cache]
 
                 for k in range(len(pos_scores)):
