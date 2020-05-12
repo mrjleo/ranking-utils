@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from cached_dataset import DatasetCache, PairwiseDatasetCache
+from qa_utils.cached_dataset import DatasetCache, PairwiseDatasetCache
 from qa_utils.io import list_to, list_or_tensor_to
 from qa_utils.misc import Logger
 
