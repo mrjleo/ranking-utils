@@ -46,25 +46,7 @@ def get_checkpoints(directory, pattern):
     return sorted(files)
 
 
-def get_ranking_metrics(all_predictions, all_labels, k):
-    """Calculate MAP and MRR@k scores.
-
-    Arguments:
-        all_predictions {list[list[float]]} -- The predictions
-        all_labels {list[list[int]]} -- The relevance labels
-        k {int} -- Compute MRR@k
-
-    Returns:
-        tuple[float, float] -- A tuple containing MAP and MRR@k
-    """
-    aps, rrs = [], []
-    for predictions, labels in zip(all_predictions, all_labels):
-        aps.append(ap(predictions, labels))
-        rrs.append(rr(predictions, labels, k))
-    return np.mean(aps), np.mean(rrs)
-
-
-def evaluate(model, dataloader, k, device, has_multiple_inputs):
+def evaluate(model, dataloader, k, device, has_multiple_inputs=False, average_metrics=True):
     """Evaluate the model on a testset.
 
     Arguments:
@@ -72,7 +54,10 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
         dataloader {torch.utils.data.DataLoader} -- Testset DataLoader
         k {int} -- Calculate MRR@k
         device {torch.device} -- Device to evaluate on
-        has_multiple_inputs {bool} -- Whether the input is a list of tensors
+
+    Keyword Arguments:
+        has_multiple_inputs {bool} -- Whether the input is a list of tensors (default: {False})
+        return_qid_results {bool} -- Whether to average metrics over all queries (default: {True})
 
     Returns:
         dict[str, float] -- All computed metrics
@@ -89,15 +74,23 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
             result[q_id][0].append(prediction[0])
             result[q_id][1].append(label)
 
-    metric_vals = {}
-
-    all_scores, all_labels = [], []
-    for q_id, (scores, labels) in result.items():
-        all_scores.append(scores)
+    q_ids, all_predictions, all_labels = [], [], []
+    for q_id, (predictions, labels) in result.items():
+        q_ids.append(q_id)
+        all_predictions.append(predictions)
         all_labels.append(labels)
-    map_, mrr = get_ranking_metrics(all_scores, all_labels, k)
-    metric_vals['map'] = map_
-    metric_vals['mrr'] = mrr
+
+    aps, rrs = [], []
+    for predictions, labels in zip(all_predictions, all_labels):
+        aps.append(ap(predictions, labels))
+        rrs.append(rr(predictions, labels, k))
+
+    if not average_metrics:
+        return q_ids, aps, rrs
+
+    metric_vals = {}
+    metric_vals['map'] = np.mean(aps)
+    metric_vals['mrr'] = np.mean(rrs)
 
     def _sigmoid(x):
         return 1 / (1 + math.exp(-x))
@@ -107,6 +100,7 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
         y_true.extend(labels)
         y_pred.extend([round(_sigmoid(x)) for x in scores])
     metric_vals['acc'] = accuracy_score(y_true, y_pred)
+
     return metric_vals
 
 
