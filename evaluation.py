@@ -9,8 +9,9 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
-from qa_utils.misc import Logger
 from qa_utils.io import list_to
+from qa_utils.misc import Logger
+from qa_utils.metrics import ap, rr
 
 
 def read_args(working_dir):
@@ -45,41 +46,21 @@ def get_checkpoints(directory, pattern):
     return sorted(files)
 
 
-def get_ranking_metrics(all_scores, all_labels, k):
+def get_ranking_metrics(all_predictions, all_labels, k):
     """Calculate MAP and MRR@k scores.
 
     Arguments:
-        all_scores {list[list[float]]} -- The scores
+        all_predictions {list[list[float]]} -- The predictions
         all_labels {list[list[int]]} -- The relevance labels
-        k {int} -- Calculate MRR@k
+        k {int} -- Compute MRR@k
 
     Returns:
         tuple[float, float] -- A tuple containing MAP and MRR@k
     """
-
-    def _ap(pred, gt):
-        score = 0.0
-        num_hits = 0.0
-        for i, p in enumerate(pred):
-            if p in gt and p not in pred[:i]:
-                num_hits += 1.0
-                score += num_hits / (i + 1.0)
-        return score / max(1.0, len(gt))
-
-    def _rr(pred, gt):
-        score = 0.0
-        for rank, item in enumerate(pred[:k]):
-            if item in gt:
-                score = 1.0 / (rank + 1.0)
-                break
-        return score
-
     aps, rrs = [], []
-    for scores, labels in zip(all_scores, all_labels):
-        rank_indices = np.asarray(scores).argsort()[::-1]
-        gt_indices = set(list(np.where(np.asarray(labels) > 0)[0]))
-        aps.append(_ap(rank_indices, gt_indices))
-        rrs.append(_rr(rank_indices, gt_indices))
+    for predictions, labels in zip(all_predictions, all_labels):
+        aps.append(ap(predictions, labels))
+        rrs.append(rr(predictions, labels, k))
     return np.mean(aps), np.mean(rrs)
 
 
