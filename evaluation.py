@@ -1,17 +1,17 @@
-import os
-import re
 import csv
 import math
+import os
+import re
 from collections import defaultdict
 
-import torch
 import numpy as np
-from tqdm import tqdm
+import torch
 from sklearn.metrics import accuracy_score
+from tqdm import tqdm
 
 from qa_utils.io import list_to
-from qa_utils.misc import Logger
 from qa_utils.metrics import ap, rr
+from qa_utils.misc import Logger
 
 
 def read_args(working_dir):
@@ -118,12 +118,7 @@ def evaluate_multi_output_model(model, dataloader, k, device, has_multiple_input
         list[dict[str, float]] -- Computed metrics for each output.
     """
     result = defaultdict(lambda: ([], []))
-    k = 0
     for batch in tqdm(dataloader):
-        k += 1
-        if k == 100:
-            break
-
         q_ids, inputs, labels = batch
         if has_multiple_inputs:
             inputs = list_to(device, inputs)
@@ -152,7 +147,13 @@ def evaluate_multi_output_model(model, dataloader, k, device, has_multiple_input
     for i, all_scores in enumerate(per_out_scores):
         all_scores = list(map(list, all_scores))
 
-        map_, mrr = get_ranking_metrics(all_scores, all_labels, k)
+        aps, rrs = [], []
+        for predictions, labels in zip(all_scores, all_labels):
+            aps.append(ap(predictions, labels))
+            rrs.append(rr(predictions, labels, k))
+
+        map_, mrr = np.mean(aps), np.mean(rrs)
+
         metric_dict = {'map': map_, 'mrr': mrr}
 
         y_pred = np.round(_sigmoid(np.concatenate(all_scores)))
