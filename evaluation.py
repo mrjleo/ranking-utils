@@ -1,16 +1,17 @@
-import csv
-import math
 import os
 import re
+import csv
+import math
 from collections import defaultdict
 
-import numpy as np
 import torch
-from sklearn.metrics import accuracy_score
+import numpy as np
 from tqdm import tqdm
+from sklearn.metrics import accuracy_score
 
 from qa_utils.io import list_to
 from qa_utils.misc import Logger
+from qa_utils.metrics import ap, rr
 
 
 def read_args(working_dir):
@@ -45,45 +46,8 @@ def get_checkpoints(directory, pattern):
     return sorted(files)
 
 
-def get_ranking_metrics(all_scores, all_labels, k):
-    """Calculate MAP and MRR@k scores.
-
-    Arguments:
-        all_scores {list[list[float]]} -- The scores
-        all_labels {list[list[int]]} -- The relevance labels
-        k {int} -- Calculate MRR@k
-
-    Returns:
-        tuple[float, float] -- A tuple containing MAP and MRR@k
-    """
-
-    def _ap(pred, gt):
-        score = 0.0
-        num_hits = 0.0
-        for i, p in enumerate(pred):
-            if p in gt and p not in pred[:i]:
-                num_hits += 1.0
-                score += num_hits / (i + 1.0)
-        return score / max(1.0, len(gt))
-
-    def _rr(pred, gt):
-        score = 0.0
-        for rank, item in enumerate(pred[:k]):
-            if item in gt:
-                score = 1.0 / (rank + 1.0)
-                break
-        return score
-
-    aps, rrs = [], []
-    for scores, labels in zip(all_scores, all_labels):
-        rank_indices = np.asarray(scores).argsort()[::-1]
-        gt_indices = set(list(np.where(np.asarray(labels) > 0)[0]))
-        aps.append(_ap(rank_indices, gt_indices))
-        rrs.append(_rr(rank_indices, gt_indices))
-    return np.mean(aps), np.mean(rrs)
-
-
-def evaluate(model, dataloader, k, device, has_multiple_inputs):
+def evaluate(model, dataloader, k, device, has_multiple_inputs=False,
+             return_query_metrics=False):
     """Evaluate the model on a testset.
 
     Arguments:
@@ -91,7 +55,10 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
         dataloader {torch.utils.data.DataLoader} -- Testset DataLoader
         k {int} -- Calculate MRR@k
         device {torch.device} -- Device to evaluate on
-        has_multiple_inputs {bool} -- Whether the input is a list of tensors
+
+    Keyword Arguments:
+        has_multiple_inputs {bool} -- Whether the input is a list of tensors (default: {False})
+        return_query_metrics {bool} -- Whether to also return APs and RRs (default: {False})
 
     Returns:
         dict[str, float] -- All computed metrics
@@ -108,15 +75,20 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
             result[q_id][0].append(prediction[0])
             result[q_id][1].append(label)
 
-    metric_vals = {}
-
-    all_scores, all_labels = [], []
-    for q_id, (scores, labels) in result.items():
-        all_scores.append(scores)
+    q_ids, all_predictions, all_labels = [], [], []
+    for q_id, (predictions, labels) in result.items():
+        q_ids.append(q_id)
+        all_predictions.append(predictions)
         all_labels.append(labels)
-    map_, mrr = get_ranking_metrics(all_scores, all_labels, k)
-    metric_vals['map'] = map_
-    metric_vals['mrr'] = mrr
+
+    aps, rrs = [], []
+    for predictions, labels in zip(all_predictions, all_labels):
+        aps.append(ap(predictions, labels))
+        rrs.append(rr(predictions, labels, k))
+
+    metric_vals = {}
+    metric_vals['map'] = np.mean(aps)
+    metric_vals['mrr'] = np.mean(rrs)
 
     def _sigmoid(x):
         return 1 / (1 + math.exp(-x))
@@ -126,6 +98,9 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs):
         y_true.extend(labels)
         y_pred.extend([round(_sigmoid(x)) for x in scores])
     metric_vals['acc'] = accuracy_score(y_true, y_pred)
+
+    if return_query_metrics:
+        return metric_vals, q_ids, aps, rrs
     return metric_vals
 
 
@@ -192,7 +167,8 @@ def evaluate_multi_output_model(model, dataloader, k, device, has_multiple_input
 
 
 def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, has_multiple_inputs=False,
-                 dev_metric='mrr', test_metrics=['map', 'mrr'], interval=1):
+                 dev_metric='mrr', test_metrics=['map', 'mrr'], interval=1,
+                 log_query_metrics=False):
     """Evaluate each checkpoint in the working directory against the devset. Afterwards, evaluate
     the checkpoint with the highest dev metric against the testset. The results are saved in a log
     file.
@@ -210,6 +186,7 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, has_multiple_in
         dev_metric {str} -- The metric to use for validation (default: {'mrr'})
         test_metrics {list[str]} -- The metrics to report on the testset (default: {['map', 'mrr']})
         interval {int} -- Evaluate only one in this many checkpoints (default: {1})
+        log_query_metrics {bool} -- Log metrics for individual test queries (default: {False})
     """
     dev_file = os.path.join(working_dir, 'dev.csv')
     dev_logger = Logger(dev_file, ['ckpt', dev_metric])
@@ -224,21 +201,28 @@ def evaluate_all(model, working_dir, dev_dl, test_dl, k, device, has_multiple_in
         state = torch.load(ckpt)
         model.module.load_state_dict(state['state_dict'])
         with torch.no_grad():
-            metrics = evaluate(model, dev_dl, k, device, has_multiple_inputs)
-        dev_logger.log([ckpt, metrics[dev_metric]])
-        if metrics[dev_metric] >= best:
-            best = metrics[dev_metric]
+            metric_vals = evaluate(model, dev_dl, k, device, has_multiple_inputs)
+        dev_logger.log([ckpt, metric_vals[dev_metric]])
+        if metric_vals[dev_metric] >= best:
+            best = metric_vals[dev_metric]
             best_ckpt = ckpt
 
     print('[test] processing {}...'.format(best_ckpt))
     state = torch.load(best_ckpt)
     model.module.load_state_dict(state['state_dict'])
     with torch.no_grad():
-        metrics = evaluate(model, test_dl, k, device, has_multiple_inputs)
+        metric_vals, q_ids, aps, rrs = evaluate(model, test_dl, k, device, has_multiple_inputs,
+                                                return_query_metrics=True)
 
     test_file = os.path.join(working_dir, 'test.csv')
     test_logger = Logger(test_file, ['ckpt'] + test_metrics)
-    test_logger.log([best_ckpt] + [metrics[m] for m in test_metrics])
+    test_logger.log([best_ckpt] + [metric_vals[m] for m in test_metrics])
+
+    if log_query_metrics:
+        query_metrics_file = os.path.join(working_dir, 'query_metrics.csv')
+        query_metrics_logger = Logger(query_metrics_file, ['q_id', 'ap', 'rr'], add_timestamp=False)
+        for q_id, ap, rr in zip(q_ids, aps, rrs):
+            query_metrics_logger.log([q_id, ap, rr])
 
 
 def evaluate_all_multi_out(model, working_dir, dev_dl, test_dl, k, device, has_multiple_inputs=False,

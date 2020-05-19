@@ -15,10 +15,7 @@ class Logger(object):
     """
     def __init__(self, filename, header, add_timestamp=True, new_file=True):
         self.add_timestamp = add_timestamp
-        if new_file:
-            self._fp = open(filename, 'w', encoding='utf-8')
-        else:
-            self._fp = open(filename, 'a', encoding='utf-8')
+        self._fp = open(filename, 'w' if new_file else 'a', encoding='utf-8', newline='\n')
         self._writer = csv.writer(self._fp)
         if new_file:
             if add_timestamp:
