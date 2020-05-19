@@ -18,7 +18,7 @@ def save_args(args_file, args):
         args {argparse.Namespace} -- Command line arguments
     """
     print('writing {}...'.format(args_file))
-    with open(args_file, 'w') as fp:
+    with open(args_file, 'w', newline='') as fp:
         writer = csv.writer(fp)
         for arg in vars(args):
             writer.writerow([arg, getattr(args, arg)])
@@ -98,7 +98,7 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
         save_checkpoint(state, epoch, ckpt_dir)
 
 
-def train_model_multi_bce(model, train_dl, optimizers, args, device):
+def train_model_multi_bce(model, train_dl, optimizers, args, device, sum_losses=False):
     """Train a model with multiple outputs using binary cross entropy. Save the model after each
     epoch and log the loss in a file.
 
@@ -108,6 +108,7 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
         optimizers {list[torch.optim.Optimizer]} -- Optimizers, one for each output
         args {argparse.Namespace} -- All command line arguments
         device {torch.device} -- Device to train on
+        sum_losses {bool} -- compute total loss as sum of all output losses if true
     """
     logger, ckpt_dir = prepare_logging(args)
 
@@ -131,9 +132,16 @@ def train_model_multi_bce(model, train_dl, optimizers, args, device):
             optimizer.zero_grad()
 
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
+            per_out_losses = []
             for b_o in model(b_x.to(device)):
                 loss = criterion(b_o, b_y.to(device)) / args.accumulate_batches
+                per_out_losses.append(loss)
                 loss_sum += loss.item()
+                if not sum_losses:
+                    loss.backward()
+
+            if sum_losses:
+                loss = torch.sum(torch.stack(per_out_losses))
                 loss.backward()
 
             if (i + 1) % args.accumulate_batches == 0:
