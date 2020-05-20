@@ -1,5 +1,4 @@
 import csv
-import math
 import os
 import re
 from collections import defaultdict
@@ -91,7 +90,7 @@ def evaluate(model, dataloader, k, device, has_multiple_inputs=False,
     metric_vals['mrr'] = np.mean(rrs)
 
     def _sigmoid(x):
-        return 1 / (1 + math.exp(-x))
+        return 1 / (1 + np.exp(-x))
 
     y_true, y_pred = [], []
     for scores, labels in result.values():
