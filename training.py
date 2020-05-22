@@ -98,66 +98,6 @@ def train_model_bce(model, train_dl, optimizer, args, device, has_multiple_input
         save_checkpoint(state, epoch, ckpt_dir)
 
 
-def train_model_multi_bce(model, train_dl, optimizers, args, device, sum_losses=False):
-    """Train a model with multiple outputs using binary cross entropy. Save the model after each
-    epoch and log the loss in a file.
-
-    Arguments:
-        model {torch.nn.Module} -- The model to train
-        train_dl {torch.utils.data.DataLoader} -- Train dataloader
-        optimizers {list[torch.optim.Optimizer]} -- Optimizers, one for each output
-        args {argparse.Namespace} -- All command line arguments
-        device {torch.device} -- Device to train on
-        sum_losses {bool} -- compute total loss as sum of all output losses if true
-    """
-    logger, ckpt_dir = prepare_logging(args)
-
-    # load BERT weights
-    if args.bert_weights is not None:
-        state_dict_new = model.module.state_dict()
-        state = torch.load(args.bert_weights)
-        # we need to re-write all the keys as they are from a different model
-        for k, v in state['state_dict'].items():
-            if 'bert' in k:
-                k_new = k[k.index('bert'):]
-                state_dict_new[k_new] = v
-        model.module.load_state_dict(state_dict_new)
-
-    criterion = torch.nn.BCEWithLogitsLoss()
-    model.train()
-    for epoch in range(args.epochs):
-        loss_sum = 0
-
-        for optimizer in optimizers:
-            optimizer.zero_grad()
-
-        for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
-            per_out_losses = []
-            for b_o in model(b_x.to(device)):
-                loss = criterion(b_o, b_y.to(device)) / args.accumulate_batches
-                per_out_losses.append(loss)
-                loss_sum += loss.item()
-                if not sum_losses:
-                    loss.backward()
-
-            if sum_losses:
-                loss = torch.sum(torch.stack(per_out_losses))
-                loss.backward()
-
-            if (i + 1) % args.accumulate_batches == 0:
-                for optimizer in optimizers:
-                    optimizer.step()
-                    optimizer.zero_grad()
-
-        epoch_loss = loss_sum / len(train_dl)
-        logger.log([epoch, epoch_loss])
-
-        state = {'epoch': epoch, 'batch': i, 'state_dict': model.module.state_dict()}
-        for i, optimizer in enumerate(optimizers):
-            state['optimizer_{}'.format(i)] = optimizer.state_dict()
-        save_checkpoint(state, epoch, ckpt_dir)
-
-
 def train_model_pairwise(model, criterion, train_dl, optimizer, args, device,
                          num_neg_examples, has_multiple_inputs=False):
     """Train a model using a pairwise ranking loss. For each positive example, calculate the loss
