@@ -18,7 +18,7 @@ def save_args(args_file, args):
         args {argparse.Namespace} -- Command line arguments
     """
     print('writing {}...'.format(args_file))
-    with open(args_file, 'w', newline='') as fp:
+    with open(args_file, 'w', newline='\n') as fp:
         writer = csv.writer(fp)
         for arg in vars(args):
             writer.writerow([arg, getattr(args, arg)])
