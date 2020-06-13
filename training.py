@@ -354,14 +354,14 @@ def train_model_pairwise_with_cache(model, get_submodel_fn, criterion, dl, optim
         save_checkpoint(state, epoch, ckpt_dir)
 
 
-def train_multi_out_head_model(model, train_dl, criterion, optimizers, device, args):
+def train_multi_out_head_model(model, train_dl, criterion, optimizer, device, args):
     """Train a model with multiple heads i.e. different outputs of the same type.
 
     Args:
         model {torch.nn.Module} -- model to train
         train_dl {torch.utils.data.DataLoader} -- dataloader for training
         criterion {function} -- the criterion to optimize for
-        optimizers {list[torch.optim.Optimizer]} -- list of optimizers for each output head
+        optimizer {torch.optim.Optimizer} -- optimizer
         device {torch.device} -- torch device to train on
         args {argparse.Namespace} -- cli arguments
     """
@@ -369,23 +369,21 @@ def train_multi_out_head_model(model, train_dl, criterion, optimizers, device, a
 
     model.train()
     for epoch in range(args.epochs):
-        [optimizer.zero_grad() for optimizer in optimizers]
         loss_sum = 0
+        optimizer.zero_grad()
         for i, (b_x, b_y) in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch))):
             per_out_losses = []
-            outputs = model(b_x.to(device))
-            for out in outputs:
-                batch_loss = criterion(out, b_y.to(device)) / args.accumulate_batches
-                per_out_losses.append(batch_loss)
+            for out in model(b_x.to(device)):
+                out_loss = criterion(out, b_y.to(device)) / args.accumulate_batches
+                per_out_losses.append(out_loss)
+                loss_sum += out_loss.item()
 
-            loss = torch.stack(per_out_losses).mean()
-            loss_sum += loss.item()
+            loss = torch.stack(per_out_losses).sum()
             loss.backward()
 
             if (i + 1) % args.accumulate_batches == 0:
-                for optimizer in optimizers:
-                    optimizer.step()
-                    optimizer.zero_grad()
+                optimizer.step()
+                optimizer.zero_grad()
 
         epoch_loss = loss_sum / len(train_dl)
         logger.log([epoch, epoch_loss])
