@@ -248,6 +248,7 @@ def evaluate_all_multi_out(model, working_dir, dev_dl, test_dl, k, device, has_m
     dev_file = os.path.join(working_dir, 'dev.csv')
     dev_logger = Logger(dev_file, ['ckpt', 'output_k', dev_metric])
     best = 0
+    best_out_idx = 0
     best_ckpt = None
     model.eval()
     for i, ckpt in enumerate(get_checkpoints(os.path.join(working_dir, 'ckpt'), r'weights_(\d+).pt')):
@@ -266,6 +267,7 @@ def evaluate_all_multi_out(model, working_dir, dev_dl, test_dl, k, device, has_m
         if max_dev_metric >= best:
             best = max_dev_metric
             best_ckpt = ckpt
+            best_out_idx = np.argmax(dev_metrics).item()
 
         dev_logger.log([ckpt, np.argmax(dev_metrics).item(), max_dev_metric])
 
@@ -275,8 +277,6 @@ def evaluate_all_multi_out(model, working_dir, dev_dl, test_dl, k, device, has_m
     with torch.no_grad():
         per_out_metrics = evaluate_multi_output_model(model, test_dl, k, device, has_multiple_inputs)
 
-    test_metric_values = list(map(lambda x: x[dev_metric], per_out_metrics))
-    best_out_idx = np.argmax(test_metric_values).item()
     test_metric_dict = per_out_metrics[best_out_idx]
 
     test_file = os.path.join(working_dir, 'test.csv')
