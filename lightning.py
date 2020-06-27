@@ -123,8 +123,8 @@ class BaseRanker(LightningModule):
             labels = torch.stack(labels)
             aps.append(ap(predictions, labels))
             rrs.append(rr(predictions, labels, self.mrr_k))
-        return {'log': {'map': torch.as_tensor(np.mean(aps)),
-                        'mrr': torch.as_tensor(np.mean(rrs))}}
+        return {'log': {'val_map': torch.as_tensor(np.mean(aps)),
+                        'val_mrr': torch.as_tensor(np.mean(rrs))}}
     
     def test_dataloader(self):
         """Return a testset DataLoader.
@@ -133,7 +133,7 @@ class BaseRanker(LightningModule):
             torch.utils.data.DataLoader: The DataLoader
         """
         return torch.utils.data.DataLoader(self.test_ds, batch_size=self.batch_size,
-                                           shuffle=False, num_workers=16)
+                                           shuffle=False, num_workers=self.num_workers)
     
     def test_step(self, batch, _batch_idx):
         """Process a single test batch.
@@ -156,4 +156,6 @@ class BaseRanker(LightningModule):
         Returns:
             dict[str, dict[str, torch.Tensor]]: Logged metrics (MAP and MRR@k)
         """
-        return self.validation_epoch_end(results)
+        # we only need to change the keys here, computation is taken from validation
+        log = self.validation_epoch_end(results)['log']
+        return {'log': {'test_map': log['val_map'], 'test_mrr': log['val_mrr']}}
