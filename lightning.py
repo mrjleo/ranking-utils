@@ -6,7 +6,7 @@ from pytorch_lightning import LightningModule
 
 
 def ap(predictions, labels):
-    """Calculate the average precision for a single query.
+    """Compute the average precision for a single query.
 
     Arguments:
         predictions {torch.Tensor} -- A list of predictions
@@ -27,7 +27,7 @@ def ap(predictions, labels):
 
 
 def rr(predictions, labels, k):
-    """Calculate the reciprocal rank for a single query.
+    """Compute the reciprocal rank for a single query.
 
     Arguments:
         predictions {torch.Tensor} -- A list of predictions
@@ -76,7 +76,8 @@ class BaseRanker(LightningModule):
             torch.utils.data.DataLoader: The DataLoader
         """
         return torch.utils.data.DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True,
-                                           num_workers=self.num_workers)
+                                           num_workers=self.num_workers,
+                                           collate_fn=getattr(self.train_ds, 'collate_fn', None))
     
     def val_dataloader(self):
         """Return a validation set DataLoader.
@@ -85,7 +86,8 @@ class BaseRanker(LightningModule):
             torch.utils.data.DataLoader: The DataLoader
         """
         return torch.utils.data.DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False,
-                                           num_workers=self.num_workers)
+                                           num_workers=self.num_workers,
+                                           collate_fn=getattr(self.val_ds, 'collate_fn', None))
 
     def validation_step(self, batch, _batch_idx):
         """Process a single validation batch.
@@ -133,7 +135,8 @@ class BaseRanker(LightningModule):
             torch.utils.data.DataLoader: The DataLoader
         """
         return torch.utils.data.DataLoader(self.test_ds, batch_size=self.batch_size,
-                                           shuffle=False, num_workers=self.num_workers)
+                                           shuffle=False, num_workers=self.num_workers,
+                                           collate_fn=getattr(self.test_ds, 'collate_fn', None))
     
     def test_step(self, batch, _batch_idx):
         """Process a single test batch.
