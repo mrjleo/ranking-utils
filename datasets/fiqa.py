@@ -4,8 +4,6 @@ import argparse
 from pathlib import Path
 from collections import defaultdict
 
-from tqdm import tqdm
-
 from qa_utils.datasets.dataset import Dataset
 
 
@@ -26,7 +24,7 @@ class FiQA(Dataset):
         with open(question_file, encoding='utf-8') as fp:
             # skip header
             next(fp)
-            for _, q_id, question, _ in tqdm(csv.reader(fp, delimiter='\t'), total=6649):
+            for _, q_id, question, _ in csv.reader(fp, delimiter='\t'):
                 queries[q_id] = question
 
         doc_file = base_dir / 'FiQA_train_doc_final.tsv'
@@ -35,7 +33,7 @@ class FiQA(Dataset):
         with open(doc_file, encoding='utf-8') as fp:
             # skip header
             next(fp)
-            for _, doc_id, doc, _ in tqdm(csv.reader(fp, delimiter='\t'), total=57641):
+            for _, doc_id, doc, _ in csv.reader(fp, delimiter='\t'):
                 docs[doc_id] = doc
 
         question_doc_file = base_dir / 'FiQA_train_question_doc_final.tsv'
@@ -44,7 +42,7 @@ class FiQA(Dataset):
         with open(question_doc_file, encoding='utf-8') as fp:
             # skip header
             next(fp)
-            for _, q_id, doc_id in tqdm(csv.reader(fp, delimiter='\t'), total=17111):
+            for _, q_id, doc_id in csv.reader(fp, delimiter='\t'):
                 qrels[q_id].add(doc_id)
 
         print(f'reading {split_file}...')
