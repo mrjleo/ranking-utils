@@ -62,7 +62,7 @@ class TrainDatasetBase(Dataset, abc.ABC):
 
 
 class ValDatasetBase(Dataset, abc.ABC):
-    """Abstract base class for pairwise training datasets. Methods to be implemented:
+    """Abstract base class for pairwise validation datasets. Methods to be implemented:
         * get_single_input
         * collate_fn (optional)
     """
