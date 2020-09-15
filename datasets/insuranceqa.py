@@ -37,14 +37,14 @@ class InsuranceQA(Dataset):
 
         # read all qrels and top documents
         files = [
-            base_dir / 'InsuranceQA.question.anslabel.token.1500.pool.solr.train.encoded.gz',
+            base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.train.encoded.gz',
             base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.valid.encoded.gz',
             base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.test.encoded.gz'
         ]
         sets = [set(), set(), set()]
         prefixes = ['train', 'val', 'test']
 
-        queries, qrels, top = {}, defaultdict(set), defaultdict(set)
+        queries, qrels, pools = {}, defaultdict(set), defaultdict(set)
         for f, ids, prefix in zip(files, sets, prefixes):
             print(f'reading {f}...')
             with gzip.open(f) as fp:
@@ -58,10 +58,10 @@ class InsuranceQA(Dataset):
                     for doc_id in gt.split():
                         qrels[q_id].add(doc_id)
                     for doc_id in pool.split():
-                        top[q_id].add(doc_id)
+                        pools[q_id].add(doc_id)
 
         train_ids, val_ids, test_ids = sets
-        super().__init__(queries, docs, qrels, top, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
 
 
     @staticmethod
@@ -73,6 +73,6 @@ class InsuranceQA(Dataset):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('INSRQA_V2_DIR', help='Folder with insuranceQA v2 files')
+        sp.add_argument('INSRQA_V2_DIR', help='InsuranceQA V2 dataset directory')
         sp.add_argument('--examples_per_query', type=int, choices=[100, 500, 1000, 1500],
                         default=500, help='How many examples per query in the dev- and testset')

@@ -18,7 +18,7 @@ class Trainingset(object):
     Yields:
         Tuple[int, int, int]: Query ID, positive document ID, negative document ID
     """
-    def __init__(self, doc_ids: Sequence[int], train_set: Dict[int, Tuple[int, int]], num_negatives: int):
+    def __init__(self, doc_ids: Sequence[int], train_set: Dict[int, List[Tuple[int, int]]], num_negatives: int):
         self.doc_ids = doc_ids
         self.num_negatives = num_negatives
 
@@ -98,7 +98,7 @@ class Testset(object):
     Yields:
         Tuple[int, int, int]: Query ID, document ID, label
     """
-    def __init__(self, test_set: Dict[int, Tuple[int, int]]):
+    def __init__(self, test_set: Dict[int, List[Tuple[int, int]]]):
         self.test_set = test_set
 
     def __len__(self) -> int:
@@ -150,13 +150,20 @@ class Testset(object):
 
 
 class Dataset(object):
-    """Dataset class that provides iterators over train-, val- and testset.
+    """Dataset class that provides iterators over train-, val- and testset. for the trainingset,
+    positive documents are taken from `qrels` and negative ones are sampled from `pools`.
+
+    Similarly, validation- and testset contain all documents (corresponding to the query IDs in the set)
+    from `qrels` and `pools`, which are to be re-ranked.
+
+    Query and document IDs are converted to integer internally. Original IDs can be restored using
+    `orig_q_ids` and `orig_doc_ids`.
 
     Args:
         queries (Dict[str, str]): Query IDs mapped to queries
         docs (Dict[str, str]): Document IDs mapped to documents
         qrels (Dict[str, Set[str]]): Query IDs mapped to relevant documents
-        top (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents
+        pools (Dict[str, Set[str]]): Query IDs mapped to top-k retrieved documents
         train_ids (Set[str]): Trainset query IDs
         val_ids (Set[str]): Validationset query IDs
         test_ids (Set[str]): Testset query IDs
@@ -164,9 +171,13 @@ class Dataset(object):
     """
     def __init__(self,
                  queries: Dict[str, str], docs: Dict[str, str],
-                 qrels: Dict[str, Set[str]], top: Dict[str, Set[str]],
+                 qrels: Dict[str, Set[str]], pools: Dict[str, Set[str]],
                  train_ids: Set[str], val_ids: Set[str], test_ids: Set[str],
                  num_negatives: int):
+        # make sure no IDs are in any two sets
+        assert len(train_ids & val_ids) == 0
+        assert len(train_ids & test_ids) == 0
+        assert len(val_ids & test_ids) == 0
 
         # assign unique integer IDs to queries and docs, but keep mappings from and to the original IDs
         self.orig_q_ids, self.int_q_ids = {}, {}
@@ -190,20 +201,19 @@ class Dataset(object):
             int_doc_ids = {self.int_doc_ids[orig_doc_id] for orig_doc_id in orig_doc_ids if orig_doc_id in self.int_doc_ids}
             self.qrels[int_q_id] = int_doc_ids
 
-        self.top = {}
-        for orig_q_id, orig_doc_ids in top.items():
+        self.pools = {}
+        for orig_q_id, orig_doc_ids in pools.items():
             int_q_id = self.int_q_ids[orig_q_id]
             int_doc_ids = {self.int_doc_ids[orig_doc_id] for orig_doc_id in orig_doc_ids if orig_doc_id in self.int_doc_ids}
-            self.top[int_q_id] = int_doc_ids
+            self.pools[int_q_id] = int_doc_ids
 
-        self.train_set = self._create_trainset(map(self.int_q_ids.get, train_ids))
-        self.val_set = self._create_testset(map(self.int_q_ids.get, val_ids))
-        self.test_set = self._create_testset(map(self.int_q_ids.get, test_ids))
-
+        self.train_set = self._create_set(map(self.int_q_ids.get, train_ids))
+        self.val_set = self._create_set(map(self.int_q_ids.get, val_ids))
+        self.test_set = self._create_set(map(self.int_q_ids.get, test_ids))
         self.num_negatives = num_negatives
 
-    def _create_trainset(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
-        """Create a set of documents for the query IDs. The set contains all top documents and all documents from the qrels.
+    def _create_set(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
+        """Create a set of documents for the query IDs. For each query, the set contains its pool and all relevant documents.
         Empty queries and documents will be ignored.
 
         Args:
@@ -214,41 +224,13 @@ class Dataset(object):
         """
         result = defaultdict(list)
         for q_id in q_ids:
-
             if len(self.queries.get(q_id, '').strip()) == 0:
                 continue
 
-            for doc_id in self.qrels.get(q_id, []):
+            for doc_id in self.pools.get(q_id, set()) | self.qrels.get(q_id, set()):
                 if len(self.docs.get(doc_id, '').strip()) > 0:
-                    result[q_id].append((doc_id, 1))
-
-            for doc_id in self.top.get(q_id, []):
-                if len(self.docs.get(doc_id, '').strip()) > 0 and doc_id not in self.qrels.get(q_id, {}):
-                    result[q_id].append((doc_id, 0))
-
-        return result
-
-    def _create_testset(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
-        """Create a set of documents for the query IDs. The set contains all top documents.
-        Empty queries and documents will be ignored.
-
-        Args:
-            q_ids (Sequence[int]): Query IDs
-
-        Returns:
-            Dict[int, List[Tuple[int, int]]]: Query IDs mapped to document IDs and labels
-        """
-        result = defaultdict(list)
-        for q_id in q_ids:
-
-            if len(self.queries.get(q_id, '').strip()) == 0:
-                continue
-
-            for doc_id in self.top.get(q_id, []):
-                if len(self.docs.get(doc_id, '').strip()) > 0:
-                    label = 1 if doc_id in self.qrels.get(q_id, {}) else 0
+                    label = 1 if doc_id in self.qrels.get(q_id, set()) else 0
                     result[q_id].append((doc_id, label))
-
         return result
 
     @property

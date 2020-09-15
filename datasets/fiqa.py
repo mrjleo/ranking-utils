@@ -47,11 +47,11 @@ class FiQA(Dataset):
 
         print(f'reading {split_file}...')
         with open(split_file, 'rb') as fp:
-            top, val_ids, test_ids = pickle.load(fp)
-        assert len(queries) == len(top)
+            pools, val_ids, test_ids = pickle.load(fp)
+        assert len(queries) == len(pools)
 
         train_ids = set(queries.keys()) - val_ids - test_ids
-        super().__init__(queries, docs, qrels, top, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
@@ -62,5 +62,5 @@ class FiQA(Dataset):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('FIQA_DIR', help='Folder with all FiQA files')
-        sp.add_argument('SPLIT_FILE', help='File with train/dev/test split')
+        sp.add_argument('FIQA_DIR', help='FiQA dataset directory')
+        sp.add_argument('SPLIT_FILE', help='FiQA split')

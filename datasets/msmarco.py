@@ -52,14 +52,14 @@ class MSMARCO(Dataset):
                     q_ids[f_name].add(q_id)
 
         # read all top documents
-        top = defaultdict(set)
+        pool = defaultdict(set)
         for f_name, num_lines in zip(['top1000.train.txt', 'top1000.dev.tsv'], [478016942, 6668967]):
             f = base_dir / f_name
             print(f'reading {f}...')
             with open(f, encoding='utf-8') as fp:
                 reader = csv.reader(fp, delimiter='\t')
                 for q_id, doc_id, _, _ in tqdm(reader, total=num_lines):
-                    top[q_id].add(doc_id)
+                    pool[q_id].add(doc_id)
 
         print(f'reading {split_file}...')
         with open(split_file, 'rb') as fp:
@@ -67,7 +67,7 @@ class MSMARCO(Dataset):
 
         train_ids = q_ids['qrels.train.tsv']
         test_ids = q_ids['qrels.dev.tsv'] - val_ids
-        super().__init__(queries, docs, qrels, top, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pool, train_ids, val_ids, test_ids, num_negatives)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
@@ -78,5 +78,5 @@ class MSMARCO(Dataset):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('MSMARCO_DIR', help='Folder with all MS MARCO ranking files')
+        sp.add_argument('MSMARCO_DIR', help='MS MARCO passage ranking dataset directory')
         sp.add_argument('SPLIT_FILE', help='MS MARCO split')

@@ -32,6 +32,10 @@ class ANTIQUE(Dataset):
         with open(doc_file, encoding='utf-8') as fp:
             docs = {doc_id: doc for doc_id, doc in csv.reader(fp, delimiter='\t', quotechar=None)}
 
+        print(f'reading {split_file}...')
+        with open(split_file, 'rb') as fp:
+            pools, val_ids = pickle.load(fp)
+
         # read all qrels
         qrels = defaultdict(set)
         q_ids = defaultdict(set)
@@ -43,18 +47,17 @@ class ANTIQUE(Dataset):
                     q_id, _, doc_id, rel = line.split()
 
                     # authors recommend treating rel > 2 as positive
+                    # the others are added to the pool to be re-ranked
                     if int(rel) > 2:
                         qrels[q_id].add(doc_id)
+                    else:
+                        pools[q_id].add(doc_id)
 
                     q_ids[f_name].add(q_id)
 
-        print(f'reading {split_file}...')
-        with open(split_file, 'rb') as fp:
-            top, val_ids = pickle.load(fp)
-
         train_ids = q_ids['antique-train.qrel'] - val_ids
         test_ids = q_ids['antique-test.qrel']
-        super().__init__(queries, docs, qrels, top, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
@@ -65,5 +68,5 @@ class ANTIQUE(Dataset):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('ANTIQUE_DIR', help='Folder with all Antique files')
-        sp.add_argument('SPLIT_FILE', help='File with train/dev/test split')
+        sp.add_argument('ANTIQUE_DIR', help='ANTIQUE dataset directory')
+        sp.add_argument('SPLIT_FILE', help='ANTIQUE split')
