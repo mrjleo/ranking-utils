@@ -1,47 +1,47 @@
 from collections import defaultdict
-from typing import Any, Iterable, Optional, Dict, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import abc
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from pytorch_lightning import LightningModule
+from pytorch_lightning import LightningModule, EvalResult
 
 from qa_utils.lightning.sampler import DistributedQuerySampler
 from qa_utils.lightning.datasets import TrainDatasetBase, ValDatasetBase
-from qa_utils.lightning.metrics import average_precision, reciprocal_rank, SyncedSum
+from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 
 
 # types
 # an input batch varies for each model, hence we use Any here
 InputBatch = Any
 ValBatch = Tuple[torch.IntTensor, InputBatch, torch.IntTensor]
-LightningOutput = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
 
 
 class BaseRanker(LightningModule, abc.ABC):
+    """Abstract base class for re-rankers. Implements average precision and reciprocal rank validation.
+    This class needs to be extended and (at least) the following methods must be implemented:
+        * forward
+        * configure_optimizers
+        * training_step
+
+    Since this class uses custom sampling in DDP mode, the `Trainer` object must be initialized using
+    `replace_sampler_ddp=False` and the argument `uses_ddp=True` must be set when DDP is active.
+
+    Args:
+        hparams ([type]): All model hyperparameters
+        train_ds (TrainDatasetBase): The training dataset
+        val_ds (Optional[ValDatasetBase]): The validation dataset
+        batch_size (int): The batch size
+        rr_k (int, optional): Compute RR@K. Defaults to 10.
+        num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
+        uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
+        validation (str, optional): Metric used for validation. Defaults to 'map'.
+    """
     def __init__(self, hparams,
                  train_ds: TrainDatasetBase, val_ds: Optional[ValDatasetBase],
                  batch_size: int, rr_k: int = 10,
-                 num_workers: int = 16, uses_ddp: bool = False):
-        """Abstract base class for re-rankers. Implements average precision and reciprocal rank validation.
-        This class needs to be extended and (at least) the following methods must be implemented:
-            * forward
-            * configure_optimizers
-            * training_step
-
-        Since this class uses custom sampling in DDP mode, the `Trainer` object must be initialized using
-        `replace_sampler_ddp=False` and the argument `uses_ddp=True` must be set when DDP is active.
-
-        Args:
-            hparams ([type]): All model hyperparameters
-            train_ds (TrainDatasetBase): The training dataset
-            val_ds (Optional[ValDatasetBase]): The validation dataset
-            batch_size (int): The batch size
-            rr_k (int, optional): Compute RR@K. Defaults to 10.
-            num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
-            uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
-        """
+                 num_workers: int = 16, uses_ddp: bool = False, validation: str = 'map'):
         super().__init__()
         self.hparams = hparams
         self.save_hyperparameters(hparams)
@@ -52,10 +52,8 @@ class BaseRanker(LightningModule, abc.ABC):
         self.rr_k = rr_k
         self.num_workers = num_workers
         self.uses_ddp = uses_ddp
-
-        # used for validation in DDP mode
-        # we do not normalize AP/RR as it makes no difference for validation
-        self.synced_sum = SyncedSum()
+        self.validation = validation
+        assert validation in ('map', 'mrr')
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
@@ -93,7 +91,7 @@ class BaseRanker(LightningModule, abc.ABC):
         return DataLoader(self.val_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
 
-    def validation_step(self, batch: ValBatch, batch_idx: int) -> LightningOutput:
+    def validation_step(self, batch: ValBatch, batch_idx: int) -> EvalResult:
         """Process a single validation batch.
 
         Args:
@@ -101,33 +99,44 @@ class BaseRanker(LightningModule, abc.ABC):
             batch_idx (int): Batch index
 
         Returns:
-            LightningOutput: Query IDs, resulting predictions and labels
+            EvalResult: Query IDs, resulting predictions and labels
         """
         q_ids, inputs, labels = batch
         outputs = self(*inputs)
-        return {'q_ids': q_ids, 'predictions': outputs, 'labels': labels}
 
-    def validation_epoch_end(self, results: Iterable[LightningOutput]) -> LightningOutput:
-        """Accumulate all validation batches and compute AP.
+        result = EvalResult()
+        result.log('q_ids', q_ids, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
+        result.log('predictions', outputs, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
+        result.log('labels', labels, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
+        return result
+
+    def validation_epoch_end(self, val_results: EvalResult) -> EvalResult:
+        """Accumulate all validation batches and compute MAP and MRR@k. The results are approximate in DDP mode.
 
         Args:
-            results (Iterable[LightningOutput]): Query IDs, resulting predictions and labels
+            val_results (EvalResult): Query IDs, resulting predictions and labels
 
         Returns:
-            LightningOutput: The sums of all APs and RRs (for each query)
+            EvalResult: MAP and MRR@k
         """
-        r = defaultdict(lambda: ([], []))
-        for step in results:
-            for q_id, (pred,), label in zip(step['q_ids'], step['predictions'], step['labels']):
-                # q_id is a tensor with one element, we convert it to an int to use it as dict key
-                q_id = int(q_id.cpu())
-                r[q_id][0].append(pred)
-                r[q_id][1].append(label)
+        temp = defaultdict(lambda: ([], []))
+        for q_id, (pred,), label in zip(val_results['q_ids'], val_results['predictions'], val_results['labels']):
+            # q_id is a tensor with one element, we convert it to an int to use it as dict key
+            q_id = int(q_id.cpu())
+            temp[q_id][0].append(pred)
+            temp[q_id][1].append(label)
+
         aps, rrs = [], []
-        for predictions, labels in r.values():
+        for predictions, labels in temp.values():
             predictions = torch.stack(predictions)
             labels = torch.stack(labels)
             aps.append(average_precision(predictions, labels))
             rrs.append(reciprocal_rank(predictions, labels, self.rr_k))
-        return {'log': {'val_ap_sum': self.synced_sum(torch.stack(aps)),
-                        'val_rr_sum': self.synced_sum(torch.stack(rrs))}}
+        val_map = torch.mean(torch.stack(aps))
+        val_mrr = torch.mean(torch.stack(rrs))
+
+        val_metric = val_map if self.validation == 'map' else val_mrr
+        result = EvalResult(checkpoint_on=val_metric, early_stop_on=val_metric)
+        result.log('val_map', val_map, sync_dist=True)
+        result.log('val_mrr', val_mrr, sync_dist=True)
+        return result

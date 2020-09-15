@@ -1,7 +1,5 @@
 import torch
 
-from pytorch_lightning.metrics import TensorMetric
-
 
 def average_precision(predictions: torch.FloatTensor, labels: torch.IntTensor) -> torch.FloatTensor:
     """Compute the average precision for a single query.
@@ -39,14 +37,5 @@ def reciprocal_rank(predictions: torch.FloatTensor, labels: torch.IntTensor, k: 
     label_indices, = torch.where(labels > 0)
     for rank, item in enumerate(prediction_indices[:k]):
         if item in label_indices:
-            return torch.as_tensor(1 / (rank + 1), device=predictions.device)
-    return torch.as_tensor(0, device=predictions.device)
-
-
-class SyncedSum(TensorMetric):
-    """Compute the sum of tensor elements, synced across all DDP nodes."""
-    def __init__(self):
-        super().__init__('Synced Sum')
-
-    def forward(self, x):
-        return torch.sum(x)
+            return torch.as_tensor(1.0 / (rank + 1), device=predictions.device)
+    return torch.as_tensor(0.0, device=predictions.device)
