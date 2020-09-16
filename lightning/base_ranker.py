@@ -5,16 +5,16 @@ import abc
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from pytorch_lightning import LightningModule, EvalResult
+from pytorch_lightning import LightningModule, TrainResult, EvalResult
 
 from qa_utils.lightning.sampler import DistributedQuerySampler
 from qa_utils.lightning.datasets import TrainDatasetBase, ValDatasetBase
 from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 
 
-# types
-# an input batch varies for each model, hence we use Any here
+# input batches vary for each model, hence we use Any here
 InputBatch = Any
+TrainingBatch = Tuple[InputBatch, InputBatch]
 ValBatch = Tuple[torch.IntTensor, InputBatch, torch.IntTensor]
 
 
@@ -23,7 +23,6 @@ class BaseRanker(LightningModule, abc.ABC):
     This class needs to be extended and (at least) the following methods must be implemented:
         * forward
         * configure_optimizers
-        * training_step
 
     Since this class uses custom sampling in DDP mode, the `Trainer` object must be initialized using
     `replace_sampler_ddp=False` and the argument `uses_ddp=True` must be set when DDP is active.
@@ -90,6 +89,24 @@ class BaseRanker(LightningModule, abc.ABC):
 
         return DataLoader(self.val_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
+
+    def training_step(self, batch: TrainingBatch, batch_idx: int) -> TrainResult:
+        """Train a single batch using a pairwise ranking loss.
+
+        Args:
+            batch (TrainingBatch): A pairwise training batch (positive and negative inputs)
+            batch_idx (int): Batch index
+
+        Returns:
+            TrainResult: Training loss
+        """
+        pos_inputs, neg_inputs = batch
+        pos_outputs = torch.sigmoid(self(*pos_inputs))
+        neg_outputs = torch.sigmoid(self(*neg_inputs))
+        loss = torch.mean(torch.clamp(self.hparams['loss_margin'] - pos_outputs + neg_outputs, min=0))
+        result = TrainResult(minimize=loss)
+        result.log('train_loss', loss, sync_dist=True, sync_dist_op='mean')
+        return result
 
     def validation_step(self, batch: ValBatch, batch_idx: int) -> EvalResult:
         """Process a single validation batch.
