@@ -1,7 +1,7 @@
 from typing import Iterable
 from torch.utils.data.distributed import DistributedSampler
 
-from qa_utils.lightning.datasets import ValDatasetBase
+from qa_utils.lightning.datasets import ValTestDatasetBase
 
 
 class DistributedQuerySampler(DistributedSampler):
@@ -9,9 +9,9 @@ class DistributedQuerySampler(DistributedSampler):
     This is required so that ranking measures (e.g. AP) can be computed on each machine.
 
     Args:
-        dataset (ValDatasetBase): The validation dataset
+        dataset (ValTestDatasetBase): The validation dataset
     """
-    def __init__(self, dataset: ValDatasetBase):
+    def __init__(self, dataset: ValTestDatasetBase):
         super().__init__(dataset, None, None, False, 0)
 
         # first, select the query IDs (i.e. corresponding offsets) for this rank

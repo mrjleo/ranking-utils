@@ -1,3 +1,4 @@
+from pathlib import Path
 from collections import defaultdict
 from typing import Any, Dict, Optional, Tuple
 
@@ -8,14 +9,14 @@ from torch.utils.data.distributed import DistributedSampler
 from pytorch_lightning import LightningModule, TrainResult, EvalResult
 
 from qa_utils.lightning.sampler import DistributedQuerySampler
-from qa_utils.lightning.datasets import TrainDatasetBase, ValDatasetBase
+from qa_utils.lightning.datasets import TrainDatasetBase, ValTestDatasetBase
 from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 
 
 # input batches vary for each model, hence we use Any here
 InputBatch = Any
 TrainingBatch = Tuple[InputBatch, InputBatch]
-ValBatch = Tuple[torch.IntTensor, InputBatch, torch.IntTensor]
+ValTestBatch = Tuple[torch.IntTensor, InputBatch, torch.IntTensor]
 
 
 class BaseRanker(LightningModule, abc.ABC):
@@ -30,7 +31,8 @@ class BaseRanker(LightningModule, abc.ABC):
     Args:
         hparams (Dict[str, Any]): All model hyperparameters
         train_ds (TrainDatasetBase): The training dataset
-        val_ds (Optional[ValDatasetBase]): The validation dataset
+        val_ds (Optional[ValTestDatasetBase]): The validation dataset
+        test_ds (Optional[ValTestDatasetBase]): The testing dataset
         loss_margin (float): Margin used in pairwise loss
         batch_size (int): The batch size
         validation (str, optional): Metric used for validation. Defaults to 'map'.
@@ -39,7 +41,7 @@ class BaseRanker(LightningModule, abc.ABC):
         uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
     """
     def __init__(self, hparams: Dict[str, Any],
-                 train_ds: TrainDatasetBase, val_ds: Optional[ValDatasetBase],
+                 train_ds: TrainDatasetBase, val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
                  loss_margin: float,
                  batch_size: int, validation: str = 'map', rr_k: int = 10,
                  num_workers: int = 16, uses_ddp: bool = False):
@@ -49,6 +51,7 @@ class BaseRanker(LightningModule, abc.ABC):
 
         self.train_ds = train_ds
         self.val_ds = val_ds
+        self.test_ds = test_ds
         self.loss_margin = loss_margin
         self.batch_size = batch_size
         self.validation = validation
@@ -92,6 +95,24 @@ class BaseRanker(LightningModule, abc.ABC):
         return DataLoader(self.val_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
 
+    def test_dataloader(self) -> Optional[DataLoader]:
+        """Return a testset DataLoader if the testset exists. If the testset object has a function
+        named `collate_fn`, it is used. If the model is tested in DDP mode, the standard `DistributedSampler` is used.
+
+        Returns:
+            Optional[DataLoader]: The DataLoader, or None if there is no testing dataset
+        """
+        if self.test_ds is None:
+            return None
+
+        if self.uses_ddp:
+            sampler = DistributedSampler(self.test_ds, shuffle=False)
+        else:
+            sampler = None
+
+        return DataLoader(self.test_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
+                          num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
+
     def training_step(self, batch: TrainingBatch, batch_idx: int) -> TrainResult:
         """Train a single batch using a pairwise ranking loss.
 
@@ -110,11 +131,11 @@ class BaseRanker(LightningModule, abc.ABC):
         result.log('train_loss', loss, sync_dist=True, sync_dist_op='mean')
         return result
 
-    def validation_step(self, batch: ValBatch, batch_idx: int) -> EvalResult:
+    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> EvalResult:
         """Process a single validation batch.
 
         Args:
-            batch (ValBatch): Query IDs, inputs and labels
+            batch (ValTestBatch): Query IDs, inputs and labels
             batch_idx (int): Batch index
 
         Returns:
@@ -127,6 +148,27 @@ class BaseRanker(LightningModule, abc.ABC):
         result.log('q_ids', q_ids, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
         result.log('predictions', outputs, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
         result.log('labels', labels, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
+        return result
+
+    def test_step(self, batch: ValTestBatch, batch_idx: int) -> EvalResult:
+        """Process a single test batch. The resulting query IDs, predictions and labels are written to files.
+        In DDP mode one file for each device is created. The files are created in the `save_dir` of the logger.
+
+        Args:
+            batch (ValTestBatch): Query IDs, inputs and labels
+            batch_idx (int): Batch index
+
+        Returns:
+            EvalResult: The result object that creates the files
+        """
+        q_ids, inputs, labels = batch
+        orig_q_ids = [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids]
+        predictions = self(*inputs)
+        save_dir = Path(self.logger.save_dir)
+        result = EvalResult()
+        result.write('q_ids', orig_q_ids, str(save_dir / 'q_ids.pt'))
+        result.write('predictions', predictions, str(save_dir / 'predictions.pt'))
+        result.write('labels', labels, str(save_dir / 'labels.pt'))
         return result
 
     def validation_epoch_end(self, val_results: EvalResult) -> EvalResult:

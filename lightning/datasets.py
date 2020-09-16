@@ -1,24 +1,35 @@
-from typing import Any, List, Tuple
+from pathlib import Path
+from typing import Any, Tuple
 
 import abc
 import h5py
 from torch.utils.data import Dataset
 
 
-# types
-# an input varies for each model, hence we use Any here
-SingleInput = Any
-PairwiseInput = Tuple[SingleInput, SingleInput]
-ValInput = Tuple[int, SingleInput, int]
+# inputs vary for each model, hence we use Any here
+Input = Any
+TrainingInput = Tuple[Input, Input]
+ValTestInput = Tuple[int, Input, int]
 
 
 class TrainDatasetBase(Dataset, abc.ABC):
     """Abstract base class for pairwise training datasets. Methods to be implemented:
         * get_single_input
         * collate_fn (optional)
+
+    Args:
+        data_file (Path): Data file containing queries and documents
+        train_file (Path): Trainingset file
     """
+    def __init__(self, data_file: Path, train_file: Path):
+        self.data_file = data_file
+        self.train_file = train_file
+
+        with h5py.File(train_file, 'r') as fp:
+            self.length = len(fp['q_ids'])
+
     @abc.abstractmethod
-    def get_single_input(self, query: str, doc: str) -> SingleInput:
+    def get_single_input(self, query: str, doc: str) -> Input:
         """Create a single model input from a query and a document.
 
         Args:
@@ -26,18 +37,18 @@ class TrainDatasetBase(Dataset, abc.ABC):
             doc (str): The document
 
         Returns:
-            SingleInput: The model input
+            Input: The model input
         """
         pass
 
-    def __getitem__(self, index: int) -> PairwiseInput:
+    def __getitem__(self, index: int) -> TrainingInput:
         """Return a pair of positive and negative inputs for pairwise training.
 
         Args:
             index (int): Item index
 
         Returns:
-            PairwiseInput: Positive and negative inputs for pairwise training
+            TrainingInput: Positive and negative inputs for pairwise training
         """
         with h5py.File(self.train_file, 'r') as fp:
             q_id = fp['q_ids'][index]
@@ -57,17 +68,33 @@ class TrainDatasetBase(Dataset, abc.ABC):
         Returns:
             int: The dataset length
         """
-        with h5py.File(self.train_file, 'r') as fp:
-            return len(fp['q_ids'])
+        return self.length
 
 
-class ValDatasetBase(Dataset, abc.ABC):
-    """Abstract base class for pairwise validation datasets. Methods to be implemented:
+class ValTestDatasetBase(Dataset, abc.ABC):
+    """Abstract base class for validation/testing datasets. Methods to be implemented:
         * get_single_input
         * collate_fn (optional)
+
+    The datasets yields internal integer query IDs that can be held by tensors. The original IDs can be recovered using `orig_q_ids`.
+
+    Args:
+        data_file (Path): Data file containing queries and documents
+        val_test_file (Path): Validation-/testset file
     """
+    def __init__(self, data_file: Path, val_test_file: Path):
+        self.data_file = data_file
+        self.val_test_file = val_test_file
+
+        with h5py.File(data_file, 'r') as fp:
+            self.orig_q_ids = list(fp['orig_q_ids'])
+
+        with h5py.File(val_test_file, 'r') as fp:
+            self.offsets = list(fp['offsets'])
+            self.length = len(fp['queries'])
+
     @abc.abstractmethod
-    def get_single_input(self, query: str, doc: str) -> SingleInput:
+    def get_single_input(self, query: str, doc: str) -> Input:
         """Create a single model input from a query and a document.
 
         Args:
@@ -75,30 +102,20 @@ class ValDatasetBase(Dataset, abc.ABC):
             doc (str): The document
 
         Returns:
-            SingleInput: The model input
+            Input: The model input
         """
         pass
 
-    @property
-    def offsets(self) -> List[int]:
-        """Return the offsets.
-
-        Returns:
-            List[int]: The offsets
-        """
-        with h5py.File(self.val_file, 'r') as fp:
-            return list(fp['offsets'])
-
-    def __getitem__(self, index: int) -> ValInput:
+    def __getitem__(self, index: int) -> ValTestInput:
         """Return an item.
 
         Args:
             index (int): Item index
 
         Returns:
-            ValInput: Query ID, input and label
+            ValTestInput: Query ID, input and label
         """
-        with h5py.File(self.val_file, 'r') as fp:
+        with h5py.File(self.val_test_file, 'r') as fp:
             q_id = fp['q_ids'][index]
             doc_id = fp['doc_ids'][index]
             label = fp['labels'][index]
@@ -107,14 +124,13 @@ class ValDatasetBase(Dataset, abc.ABC):
             query = fp['queries'][q_id]
             doc = fp['docs'][doc_id]
 
-        # query ID does not have to be the original one here
+        # return the internal query ID here
         return q_id, self.get_single_input(query, doc), label
 
     def __len__(self) -> int:
-        """Number of validation instances.
+        """Number of validation/testing instances.
 
         Returns:
             int: The dataset length
         """
-        with h5py.File(self.val_file, 'r') as fp:
-            return len(fp['queries'])
+        return self.length
