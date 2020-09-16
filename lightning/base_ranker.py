@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import abc
 import torch
@@ -28,31 +28,33 @@ class BaseRanker(LightningModule, abc.ABC):
     `replace_sampler_ddp=False` and the argument `uses_ddp=True` must be set when DDP is active.
 
     Args:
-        hparams ([type]): All model hyperparameters
+        hparams (Dict[str, Any]): All model hyperparameters
         train_ds (TrainDatasetBase): The training dataset
         val_ds (Optional[ValDatasetBase]): The validation dataset
+        loss_margin (float): Margin used in pairwise loss
         batch_size (int): The batch size
+        validation (str, optional): Metric used for validation. Defaults to 'map'.
         rr_k (int, optional): Compute RR@K. Defaults to 10.
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
         uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
-        validation (str, optional): Metric used for validation. Defaults to 'map'.
     """
-    def __init__(self, hparams,
+    def __init__(self, hparams: Dict[str, Any],
                  train_ds: TrainDatasetBase, val_ds: Optional[ValDatasetBase],
-                 batch_size: int, rr_k: int = 10,
-                 num_workers: int = 16, uses_ddp: bool = False, validation: str = 'map'):
+                 loss_margin: float,
+                 batch_size: int, validation: str = 'map', rr_k: int = 10,
+                 num_workers: int = 16, uses_ddp: bool = False):
         super().__init__()
         self.hparams = hparams
         self.save_hyperparameters(hparams)
 
         self.train_ds = train_ds
         self.val_ds = val_ds
+        self.loss_margin = loss_margin
         self.batch_size = batch_size
+        self.validation = validation
         self.rr_k = rr_k
         self.num_workers = num_workers
         self.uses_ddp = uses_ddp
-        self.validation = validation
-        assert validation in ('map', 'mrr')
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
@@ -103,7 +105,7 @@ class BaseRanker(LightningModule, abc.ABC):
         pos_inputs, neg_inputs = batch
         pos_outputs = torch.sigmoid(self(*pos_inputs))
         neg_outputs = torch.sigmoid(self(*neg_inputs))
-        loss = torch.mean(torch.clamp(self.hparams['loss_margin'] - pos_outputs + neg_outputs, min=0))
+        loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
         result = TrainResult(minimize=loss)
         result.log('train_loss', loss, sync_dist=True, sync_dist_op='mean')
         return result
