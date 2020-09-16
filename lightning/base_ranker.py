@@ -137,6 +137,6 @@ class BaseRanker(LightningModule, abc.ABC):
 
         val_metric = val_map if self.validation == 'map' else val_mrr
         result = EvalResult(checkpoint_on=val_metric, early_stop_on=val_metric)
-        result.log('val_map', val_map, sync_dist=True)
-        result.log('val_mrr', val_mrr, sync_dist=True)
+        result.log('val_map', val_map, sync_dist=True, sync_dist_op='mean')
+        result.log('val_mrr', val_mrr, sync_dist=True, sync_dist_op='mean')
         return result
