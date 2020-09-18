@@ -144,6 +144,7 @@ class BaseRanker(LightningModule, abc.ABC):
         q_ids, inputs, labels = batch
         outputs = self(*inputs)
 
+        # this seems to break DP mode (for now), as lightning always tries to take the mean of lists/tensors
         result = EvalResult()
         result.log('q_ids', q_ids, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
         result.log('predictions', outputs, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
@@ -162,13 +163,14 @@ class BaseRanker(LightningModule, abc.ABC):
             EvalResult: The result object that creates the files
         """
         q_ids, inputs, labels = batch
-        orig_q_ids = [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids]
-        predictions = self(*inputs)
+        out_dict = {
+            'q_id': [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids],
+            'prediction': self(*inputs),
+            'label': labels
+        }
         save_dir = Path(self.logger.save_dir)
         result = EvalResult()
-        result.write('q_ids', orig_q_ids, str(save_dir / 'q_ids.pt'))
-        result.write('predictions', predictions, str(save_dir / 'predictions.pt'))
-        result.write('labels', labels, str(save_dir / 'labels.pt'))
+        result.write_dict(out_dict, str(save_dir / 'test_outputs.pt'))
         return result
 
     def validation_epoch_end(self, val_results: EvalResult) -> EvalResult:
