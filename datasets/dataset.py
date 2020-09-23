@@ -151,12 +151,12 @@ class Testset(object):
 
 class Dataset(object):
     """Dataset class that provides iterators over train-, val- and testset. for the trainingset,
-    positive documents are taken from `qrels` and negative ones are sampled from `pools`.
+    positive documents are taken from `qrels` and negative ones are sampled from `pools` (if possible).
 
-    Similarly, validation- and testset contain all documents (corresponding to the query IDs in the set)
-    from `qrels` and `pools`, which are to be re-ranked.
+    Validation- and testset contain all documents (corresponding to the query IDs in the set) from
+    `pools`, which are to be re-ranked.
 
-    Query and document IDs are converted to integer internally. Original IDs can be restored using
+    Query and document IDs are converted to integers internally. Original IDs can be restored using
     `orig_q_ids` and `orig_doc_ids`.
 
     Args:
@@ -207,12 +207,12 @@ class Dataset(object):
             int_doc_ids = {self.int_doc_ids[orig_doc_id] for orig_doc_id in orig_doc_ids if orig_doc_id in self.int_doc_ids}
             self.pools[int_q_id] = int_doc_ids
 
-        self.train_set = self._create_set(map(self.int_q_ids.get, train_ids))
-        self.val_set = self._create_set(map(self.int_q_ids.get, val_ids))
-        self.test_set = self._create_set(map(self.int_q_ids.get, test_ids))
+        self.train_set = self._create_trainset(map(self.int_q_ids.get, train_ids))
+        self.val_set = self._create_testset(map(self.int_q_ids.get, val_ids))
+        self.test_set = self._create_testset(map(self.int_q_ids.get, test_ids))
         self.num_negatives = num_negatives
 
-    def _create_set(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
+    def _create_trainset(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
         """Create a set of documents for the query IDs. For each query, the set contains its pool and all relevant documents.
         Empty queries and documents will be ignored.
 
@@ -224,14 +224,43 @@ class Dataset(object):
         """
         result = defaultdict(list)
         for q_id in q_ids:
+
             if len(self.queries.get(q_id, '').strip()) == 0:
                 continue
 
-            for doc_id in self.pools.get(q_id, set()) | self.qrels.get(q_id, set()):
+            for doc_id in self.qrels.get(q_id, []):
                 if len(self.docs.get(doc_id, '').strip()) > 0:
-                    label = 1 if doc_id in self.qrels.get(q_id, set()) else 0
-                    result[q_id].append((doc_id, label))
+                    result[q_id].append((doc_id, 1))
+
+            for doc_id in self.pools.get(q_id, []):
+                if len(self.docs.get(doc_id, '').strip()) > 0 and doc_id not in self.qrels.get(q_id, set()):
+                    result[q_id].append((doc_id, 0))
+
         return result
+
+    def _create_testset(self, q_ids: Sequence[int]) -> Dict[int, List[Tuple[int, int]]]:
+        """Create a set of documents for the query IDs. For each query, the set contains its pool.
+        Empty queries and documents will be ignored.
+
+        Args:
+            q_ids (Sequence[int]): Query IDs
+
+        Returns:
+            Dict[int, List[Tuple[int, int]]]: Query IDs mapped to document IDs and labels
+        """
+        result = defaultdict(list)
+        for q_id in q_ids:
+
+            if len(self.queries.get(q_id, '').strip()) == 0:
+                continue
+
+            for doc_id in self.pools.get(q_id, []):
+                if len(self.docs.get(doc_id, '').strip()) > 0:
+                    label = 1 if doc_id in self.qrels.get(q_id, {}) else 0
+                    result[q_id].append((doc_id, label))
+
+        return result
+
 
     @property
     def trainset(self) -> Trainingset:

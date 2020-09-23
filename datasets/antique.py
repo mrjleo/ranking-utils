@@ -46,12 +46,9 @@ class ANTIQUE(Dataset):
                 for line in fp:
                     q_id, _, doc_id, rel = line.split()
 
-                    # authors recommend treating rel > 2 as positive
-                    # the others are added to the pool to be re-ranked
+                    # the authors recommend treating rel > 2 as positive
                     if int(rel) > 2:
                         qrels[q_id].add(doc_id)
-                    else:
-                        pools[q_id].add(doc_id)
 
                     q_ids[f_name].add(q_id)
 
