@@ -50,6 +50,10 @@ class ANTIQUE(Dataset):
                     if int(rel) > 2:
                         qrels[q_id].add(doc_id)
 
+                    # for the testset, we create the pools from the qrels
+                    elif f_name == 'antique-test.qrel':
+                        pools[q_id].add(doc_id)
+
                     q_ids[f_name].add(q_id)
 
         train_ids = q_ids['antique-train.qrel'] - val_ids
