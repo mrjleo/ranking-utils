@@ -124,8 +124,8 @@ class BaseRanker(LightningModule, abc.ABC):
             TrainResult: Training loss
         """
         pos_inputs, neg_inputs = batch
-        pos_outputs = torch.sigmoid(self(*pos_inputs))
-        neg_outputs = torch.sigmoid(self(*neg_inputs))
+        pos_outputs = torch.sigmoid(self(pos_inputs))
+        neg_outputs = torch.sigmoid(self(neg_inputs))
         loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
         result = TrainResult(minimize=loss)
         result.log('train_loss', loss, sync_dist=True, sync_dist_op='mean')
@@ -142,7 +142,7 @@ class BaseRanker(LightningModule, abc.ABC):
             EvalResult: Query IDs, resulting predictions and labels
         """
         q_ids, inputs, labels = batch
-        outputs = self(*inputs)
+        outputs = self(inputs)
 
         # this seems to break DP mode (for now), as lightning always tries to take the mean of lists/tensors
         result = EvalResult()
@@ -165,7 +165,7 @@ class BaseRanker(LightningModule, abc.ABC):
         q_ids, inputs, labels = batch
         out_dict = {
             'q_id': [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids],
-            'prediction': self(*inputs),
+            'prediction': self(inputs),
             'label': labels
         }
         save_dir = Path(self.logger.save_dir)
