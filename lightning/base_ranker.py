@@ -16,7 +16,7 @@ from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 # input batches vary for each model, hence we use Any here
 InputBatch = Any
 TrainingBatch = Tuple[InputBatch, InputBatch]
-ValTestBatch = Tuple[torch.IntTensor, InputBatch, torch.IntTensor]
+ValTestBatch = Tuple[torch.IntTensor, torch.IntTensor, InputBatch, torch.IntTensor]
 
 
 class BaseRanker(LightningModule, abc.ABC):
@@ -135,13 +135,13 @@ class BaseRanker(LightningModule, abc.ABC):
         """Process a single validation batch.
 
         Args:
-            batch (ValTestBatch): Query IDs, inputs and labels
+            batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
 
         Returns:
             EvalResult: Query IDs, resulting predictions and labels
         """
-        q_ids, inputs, labels = batch
+        q_ids, _, inputs, labels = batch
         outputs = self(inputs)
 
         # this seems to break DP mode (for now), as lightning always tries to take the mean of lists/tensors
@@ -156,15 +156,16 @@ class BaseRanker(LightningModule, abc.ABC):
         In DDP mode one file for each device is created. The files are created in the `save_dir` of the logger.
 
         Args:
-            batch (ValTestBatch): Query IDs, inputs and labels
+            batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
 
         Returns:
             EvalResult: The result object that creates the files
         """
-        q_ids, inputs, labels = batch
+        q_ids, doc_ids, inputs, labels = batch
         out_dict = {
             'q_id': [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids],
+            'doc_id': [self.test_ds.orig_doc_ids[doc_id.cpu()] for doc_id in doc_ids],
             'prediction': self(inputs),
             'label': labels
         }

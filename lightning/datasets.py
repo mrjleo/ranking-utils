@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 # inputs vary for each model, hence we use Any here
 Input = Any
 TrainingInput = Tuple[Input, Input]
-ValTestInput = Tuple[int, Input, int]
+ValTestInput = Tuple[int, int, Input, int]
 
 
 class TrainDatasetBase(Dataset, abc.ABC):
@@ -88,6 +88,7 @@ class ValTestDatasetBase(Dataset, abc.ABC):
 
         with h5py.File(data_file, 'r') as fp:
             self.orig_q_ids = list(fp['orig_q_ids'])
+            self.orig_doc_ids = list(fp['orig_doc_ids'])
 
         with h5py.File(val_test_file, 'r') as fp:
             self.offsets = list(fp['offsets'])
@@ -124,8 +125,8 @@ class ValTestDatasetBase(Dataset, abc.ABC):
             query = fp['queries'][q_id]
             doc = fp['docs'][doc_id]
 
-        # return the internal query ID here
-        return q_id, self.get_single_input(query, doc), label
+        # return the internal query and document IDs here
+        return q_id, doc_id, self.get_single_input(query, doc), label
 
     def __len__(self) -> int:
         """Number of validation/testing instances.
