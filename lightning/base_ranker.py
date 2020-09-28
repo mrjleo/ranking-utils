@@ -164,8 +164,8 @@ class BaseRanker(LightningModule, abc.ABC):
         """
         q_ids, doc_ids, inputs, labels = batch
         out_dict = {
-            'q_id': [self.test_ds.orig_q_ids[q_id.cpu()] for q_id in q_ids],
-            'doc_id': [self.test_ds.orig_doc_ids[doc_id.cpu()] for doc_id in doc_ids],
+            'q_id': [self.test_ds.get_original_query_id(q_id.cpu()) for q_id in q_ids],
+            'doc_id': [self.test_ds.get_original_document_id(doc_id.cpu()) for doc_id in doc_ids],
             'prediction': self(inputs),
             'label': labels
         }

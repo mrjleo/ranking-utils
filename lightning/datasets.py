@@ -76,7 +76,8 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         * get_single_input
         * collate_fn (optional)
 
-    The datasets yields internal integer query IDs that can be held by tensors. The original IDs can be recovered using `orig_q_ids`.
+    The datasets yields internal integer IDs that can be held by tensors.
+    The original IDs can be recovered using `get_original_query_id` and `get_original_document_id`.
 
     Args:
         data_file (Path): Data file containing queries and documents
@@ -86,13 +87,33 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         self.data_file = data_file
         self.val_test_file = val_test_file
 
-        with h5py.File(data_file, 'r') as fp:
-            self.orig_q_ids = list(fp['orig_q_ids'])
-            self.orig_doc_ids = list(fp['orig_doc_ids'])
-
         with h5py.File(val_test_file, 'r') as fp:
             self.offsets = list(fp['offsets'])
             self.length = len(fp['queries'])
+
+    def get_original_query_id(self, q_id: int) -> str:
+        """Return the original (string) query ID for a given internal ID.
+
+        Args:
+            q_id (int): Internal query ID
+
+        Returns:
+            str: Original query ID
+        """
+        with h5py.File(self.data_file, 'r') as fp:
+            return fp['orig_q_ids'][q_id]
+
+    def get_original_document_id(self, doc_id: int) -> str:
+        """Return the original (string) document ID for a given internal ID.
+
+        Args:
+            doc_id (int): Internal document ID
+
+        Returns:
+            str: Original document ID
+        """
+        with h5py.File(self.data_file, 'r') as fp:
+            return fp['orig_doc_ids'][doc_id]
 
     @abc.abstractmethod
     def get_single_input(self, query: str, doc: str) -> Input:
