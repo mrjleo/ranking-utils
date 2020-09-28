@@ -11,13 +11,15 @@ def average_precision(predictions: torch.FloatTensor, labels: torch.IntTensor) -
     Returns:
         torch.FloatTensor: The average precision
     """
+    # workaround, as lightning seems to break when we return 0 here
+    score = torch.finfo(torch.float32).eps
+
     prediction_indices = predictions.argsort(descending=True)
     label_indices, = torch.where(labels > 0)
-    score = 0
-    num_hits = 0
+    num_hits = 0.0
     for i, p in enumerate(prediction_indices):
         if p in label_indices and p not in prediction_indices[:i]:
-            num_hits += 1
+            num_hits += 1.0
             score += num_hits / (i + 1)
     return torch.as_tensor(score / max(1, len(label_indices)), device=predictions.device)
 
@@ -38,4 +40,6 @@ def reciprocal_rank(predictions: torch.FloatTensor, labels: torch.IntTensor, k: 
     for rank, item in enumerate(prediction_indices[:k]):
         if item in label_indices:
             return torch.as_tensor(1.0 / (rank + 1), device=predictions.device)
-    return torch.as_tensor(0.0, device=predictions.device)
+    
+    # workaround, as lightning seems to break when we return 0 here
+    return torch.as_tensor(torch.finfo(torch.float32).eps, device=predictions.device)
