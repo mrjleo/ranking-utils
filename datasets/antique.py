@@ -48,7 +48,7 @@ class ANTIQUE(Dataset):
                     q_id, _, doc_id, rel = line.split()
 
                     # the authors recommend treating rel > 2 as positive
-                    qrels[q_id][doc_id] = int(rel)
+                    qrels[q_id][doc_id] = int(rel) - 2
 
                     # for the testset, we create the pools from the qrels
                     if f_name == 'antique-test.qrel':
