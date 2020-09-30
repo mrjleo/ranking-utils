@@ -69,7 +69,7 @@ class Trainingset(object):
             List[float]: The percentiles
         """
         num_positives = []
-        for q_id in self.qrels:
+        for q_id in self.train_ids:
             num_positives.append(len(self._get_all_positives(q_id)))
         return np.percentile(num_positives, [25, 50, 75]).tolist()
 
