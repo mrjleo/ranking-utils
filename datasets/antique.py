@@ -12,9 +12,10 @@ class ANTIQUE(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negative examples
+        num_negatives (int): Number of negatives per positive
+        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int):
+    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
         base_dir = Path(args.ANTIQUE_DIR)
         split_file = Path(args.SPLIT_FILE)
 
@@ -37,7 +38,7 @@ class ANTIQUE(Dataset):
             pools, val_ids = pickle.load(fp)
 
         # read all qrels
-        qrels = defaultdict(set)
+        qrels = defaultdict(dict)
         q_ids = defaultdict(set)
         for f_name in ['antique-train.qrel', 'antique-test.qrel']:
             f = base_dir / f_name
@@ -47,18 +48,17 @@ class ANTIQUE(Dataset):
                     q_id, _, doc_id, rel = line.split()
 
                     # the authors recommend treating rel > 2 as positive
-                    if int(rel) > 2:
-                        qrels[q_id].add(doc_id)
+                    qrels[q_id][doc_id] = int(rel)
 
                     # for the testset, we create the pools from the qrels
-                    elif f_name == 'antique-test.qrel':
+                    if f_name == 'antique-test.qrel':
                         pools[q_id].add(doc_id)
 
                     q_ids[f_name].add(q_id)
 
         train_ids = q_ids['antique-train.qrel'] - val_ids
         test_ids = q_ids['antique-test.qrel']
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

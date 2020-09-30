@@ -12,9 +12,10 @@ class FiQA(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negative examples
+        num_negatives (int): Number of negatives per positive
+        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int):
+    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
         base_dir = Path(args.FIQA_DIR)
         split_file = Path(args.SPLIT_FILE)
 
@@ -38,12 +39,12 @@ class FiQA(Dataset):
 
         question_doc_file = base_dir / 'FiQA_train_question_doc_final.tsv'
         print(f'reading {question_doc_file}...')
-        qrels = defaultdict(set)
+        qrels = defaultdict(dict)
         with open(question_doc_file, encoding='utf-8') as fp:
             # skip header
             next(fp)
             for _, q_id, doc_id in csv.reader(fp, delimiter='\t'):
-                qrels[q_id].add(doc_id)
+                qrels[q_id][doc_id] = 1
 
         print(f'reading {split_file}...')
         with open(split_file, 'rb') as fp:
@@ -51,7 +52,7 @@ class FiQA(Dataset):
         assert len(queries) == len(pools)
 
         train_ids = set(queries.keys()) - val_ids - test_ids
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

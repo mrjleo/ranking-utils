@@ -12,9 +12,10 @@ class InsuranceQA(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negative examples
+        num_negatives (int): Number of negatives per positive
+        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int):
+    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
         base_dir = Path(args.INSRQA_V2_DIR)
 
         vocab_file = base_dir / 'vocabulary'
@@ -44,7 +45,7 @@ class InsuranceQA(Dataset):
         sets = [set(), set(), set()]
         prefixes = ['train', 'val', 'test']
 
-        queries, qrels, pools = {}, defaultdict(set), defaultdict(set)
+        queries, qrels, pools = {}, defaultdict(dict), defaultdict(set)
         for f, ids, prefix in zip(files, sets, prefixes):
             print(f'reading {f}...')
             with gzip.open(f) as fp:
@@ -56,12 +57,12 @@ class InsuranceQA(Dataset):
 
                     ids.add(q_id)
                     for doc_id in gt.split():
-                        qrels[q_id].add(doc_id)
+                        qrels[q_id][doc_id] = 1
                     for doc_id in pool.split():
                         pools[q_id].add(doc_id)
 
         train_ids, val_ids, test_ids = sets
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
 
 
     @staticmethod

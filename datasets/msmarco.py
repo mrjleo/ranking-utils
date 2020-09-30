@@ -14,9 +14,10 @@ class MSMARCO(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negative examples
+        num_negatives (int): Number of negatives per positive
+        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int):
+    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
         base_dir = Path(args.MSMARCO_DIR)
         split_file = Path(args.SPLIT_FILE)
 
@@ -40,7 +41,7 @@ class MSMARCO(Dataset):
                 docs[doc_id] = doc
 
         # read all qrels
-        qrels = defaultdict(set)
+        qrels = defaultdict(dict)
         q_ids = defaultdict(set)
         for f_name, num_lines in zip(['qrels.train.tsv', 'qrels.dev.tsv'], [532761, 59273]):
             f = base_dir / f_name
@@ -48,7 +49,7 @@ class MSMARCO(Dataset):
             with open(f, encoding='utf-8') as fp:
                 reader = csv.reader(fp, delimiter='\t')
                 for q_id, _, doc_id, _ in tqdm(reader, total=num_lines):
-                    qrels[q_id].add(doc_id)
+                    qrels[q_id][doc_id] = 1
                     q_ids[f_name].add(q_id)
 
         # read all top documents
@@ -67,7 +68,7 @@ class MSMARCO(Dataset):
 
         train_ids = q_ids['qrels.train.tsv']
         test_ids = q_ids['qrels.dev.tsv'] - val_ids
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
