@@ -29,7 +29,7 @@ class Trainingset(object):
         self.percentiles = self._compute_percentiles()
         self.trainset = self._create_trainset()
 
-    def _get_docs_by_relevance(self, q_id: int) -> Dict[int, Set[str]]:
+    def _get_docs_by_relevance(self, q_id: int) -> Dict[int, Set[int]]:
         """Return all documents for a query from its pool and qrels, grouped by relevance.
         Documents from the pool that have to associated relevance get a relevance of 0.
 
@@ -37,7 +37,7 @@ class Trainingset(object):
             q_id (int): The query ID
 
         Returns:
-            Dict[int, Set[str]]: Relevances mapped to sets of document IDs
+            Dict[int, Set[int]]: Relevances mapped to sets of document IDs
         """
         result = defaultdict(set)
         for doc_id, rel in self.qrels.get(q_id, {}).items():
