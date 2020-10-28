@@ -1,12 +1,12 @@
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import abc
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from pytorch_lightning import LightningModule, TrainResult, EvalResult
+from pytorch_lightning import LightningModule
 
 from qa_utils.lightning.sampler import DistributedQuerySampler
 from qa_utils.lightning.datasets import TrainDatasetBase, ValTestDatasetBase
@@ -35,7 +35,6 @@ class BaseRanker(LightningModule, abc.ABC):
         test_ds (Optional[ValTestDatasetBase]): The testing dataset
         loss_margin (float): Margin used in pairwise loss
         batch_size (int): The batch size
-        validation (str, optional): Metric used for validation. Defaults to 'map'.
         rr_k (int, optional): Compute RR@K. Defaults to 10.
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
         uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
@@ -43,7 +42,7 @@ class BaseRanker(LightningModule, abc.ABC):
     def __init__(self, hparams: Dict[str, Any],
                  train_ds: TrainDatasetBase, val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
                  loss_margin: float,
-                 batch_size: int, validation: str = 'map', rr_k: int = 10,
+                 batch_size: int, rr_k: int = 10,
                  num_workers: int = 16, uses_ddp: bool = False):
         super().__init__()
         self.hparams = hparams
@@ -54,7 +53,6 @@ class BaseRanker(LightningModule, abc.ABC):
         self.test_ds = test_ds
         self.loss_margin = loss_margin
         self.batch_size = batch_size
-        self.validation = validation
         self.rr_k = rr_k
         self.num_workers = num_workers
         self.uses_ddp = uses_ddp
@@ -113,7 +111,7 @@ class BaseRanker(LightningModule, abc.ABC):
         return DataLoader(self.test_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
 
-    def training_step(self, batch: TrainingBatch, batch_idx: int) -> TrainResult:
+    def training_step(self, batch: TrainingBatch, batch_idx: int) -> torch.Tensor:
         """Train a single batch using a pairwise ranking loss.
 
         Args:
@@ -121,46 +119,35 @@ class BaseRanker(LightningModule, abc.ABC):
             batch_idx (int): Batch index
 
         Returns:
-            TrainResult: Training loss
+            torch.Tensor: Training loss
         """
         pos_inputs, neg_inputs = batch
         pos_outputs = torch.sigmoid(self(pos_inputs))
         neg_outputs = torch.sigmoid(self(neg_inputs))
         loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
-        result = TrainResult(minimize=loss)
-        result.log('train_loss', loss, sync_dist=True, sync_dist_op='mean')
-        return result
+        self.log('train_loss', loss)
+        return loss
 
-    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> EvalResult:
+    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Tuple[torch.Tensor]:
         """Process a single validation batch.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
-
+        
         Returns:
-            EvalResult: Query IDs, resulting predictions and labels
+            Tuple[torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
-        outputs = self(inputs)
+        return q_ids, self(inputs), labels
 
-        # this seems to break DP mode (for now), as lightning always tries to take the mean of lists/tensors
-        result = EvalResult()
-        result.log('q_ids', q_ids, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
-        result.log('predictions', outputs, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
-        result.log('labels', labels, logger=False, on_step=False, on_epoch=False, reduce_fx=None, sync_dist=False)
-        return result
-
-    def test_step(self, batch: ValTestBatch, batch_idx: int) -> EvalResult:
+    def test_step(self, batch: ValTestBatch, batch_idx: int):
         """Process a single test batch. The resulting query IDs, predictions and labels are written to files.
         In DDP mode one file for each device is created. The files are created in the `save_dir` of the logger.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
-
-        Returns:
-            EvalResult: The result object that creates the files
         """
         q_ids, doc_ids, inputs, labels = batch
         out_dict = {
@@ -170,37 +157,29 @@ class BaseRanker(LightningModule, abc.ABC):
             'label': labels
         }
         save_dir = Path(self.logger.save_dir)
-        result = EvalResult()
-        result.write_dict(out_dict, str(save_dir / 'test_outputs.pt'))
-        return result
+        self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
-    def validation_epoch_end(self, val_results: EvalResult) -> EvalResult:
+    def validation_epoch_end(self, val_results: List[Tuple[torch.Tensor]]):
         """Accumulate all validation batches and compute MAP and MRR@k. The results are approximate in DDP mode.
 
         Args:
-            val_results (EvalResult): Query IDs, resulting predictions and labels
+            val_results (List[Tuple[torch.Tensor]]): Query IDs, predictions and labels
 
         Returns:
             EvalResult: MAP and MRR@k
         """
         temp = defaultdict(lambda: ([], []))
-        for q_id, (pred,), label in zip(val_results['q_ids'], val_results['predictions'], val_results['labels']):
-            # q_id is a tensor with one element, we convert it to an int to use it as dict key
-            q_id = int(q_id.cpu())
-            temp[q_id][0].append(pred)
-            temp[q_id][1].append(label)
-
+        for q_ids, predictions, labels in val_results:
+            for q_id, (prediction,), label in zip(q_ids, predictions, labels):
+                # q_id is a tensor with one element, we convert it to an int to use it as dict key
+                q_id = int(q_id.cpu())
+                temp[q_id][0].append(prediction)
+                temp[q_id][1].append(label)
         aps, rrs = [], []
         for predictions, labels in temp.values():
             predictions = torch.stack(predictions)
             labels = torch.stack(labels)
             aps.append(average_precision(predictions, labels))
             rrs.append(reciprocal_rank(predictions, labels, self.rr_k))
-        val_map = torch.mean(torch.stack(aps))
-        val_mrr = torch.mean(torch.stack(rrs))
-
-        val_metric = val_map if self.validation == 'map' else val_mrr
-        result = EvalResult(checkpoint_on=val_metric, early_stop_on=val_metric)
-        result.log('val_map', val_map, sync_dist=True, sync_dist_op='mean')
-        result.log('val_mrr', val_mrr, sync_dist=True, sync_dist_op='mean')
-        return result
+        self.log('val_map', torch.mean(torch.stack(aps)), sync_dist=True, sync_dist_op='mean')
+        self.log('val_mrr', torch.mean(torch.stack(rrs)), sync_dist=True, sync_dist_op='mean')
