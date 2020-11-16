@@ -1,6 +1,6 @@
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import abc
 import torch
@@ -9,7 +9,7 @@ from torch.utils.data.distributed import DistributedSampler
 from pytorch_lightning import LightningModule
 
 from qa_utils.lightning.sampler import DistributedQuerySampler
-from qa_utils.lightning.datasets import TrainDatasetBase, ValTestDatasetBase
+from qa_utils.lightning.datasets import PointwiseTrainDatasetBase, PairwiseTrainDatasetBase, ValTestDatasetBase
 from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 
 
@@ -30,18 +30,19 @@ class BaseRanker(LightningModule, abc.ABC):
 
     Args:
         hparams (Dict[str, Any]): All model hyperparameters
-        train_ds (TrainDatasetBase): The training dataset
+        train_ds (Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase]): The training dataset
         val_ds (Optional[ValTestDatasetBase]): The validation dataset
         test_ds (Optional[ValTestDatasetBase]): The testing dataset
-        loss_margin (float): Margin used in pairwise loss
+        loss_margin (float, optional): Margin used in pairwise loss
         batch_size (int): The batch size
         rr_k (int, optional): Compute RR@K. Defaults to 10.
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
         uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
     """
     def __init__(self, hparams: Dict[str, Any],
-                 train_ds: TrainDatasetBase, val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
-                 loss_margin: float,
+                 train_ds: Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase],
+                 val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
+                 loss_margin: Optional[float],
                  batch_size: int, rr_k: int = 10,
                  num_workers: int = 16, uses_ddp: bool = False):
         super().__init__()
@@ -56,6 +57,12 @@ class BaseRanker(LightningModule, abc.ABC):
         self.rr_k = rr_k
         self.num_workers = num_workers
         self.uses_ddp = uses_ddp
+        if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
+            self.training_mode = 'pointwise'
+            self.bce_loss = torch.nn.BCELoss()
+        else:
+            assert issubclass(train_ds.__class__, PairwiseTrainDatasetBase)
+            self.training_mode = 'pairwise'
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
@@ -112,19 +119,24 @@ class BaseRanker(LightningModule, abc.ABC):
                           num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
 
     def training_step(self, batch: TrainingBatch, batch_idx: int) -> torch.Tensor:
-        """Train a single batch using a pairwise ranking loss.
+        """Train a single batch.
 
         Args:
-            batch (TrainingBatch): A pairwise training batch (positive and negative inputs)
+            batch (TrainingBatch): A training batch (pointwise or pairwise depending on the mode)
             batch_idx (int): Batch index
 
         Returns:
             torch.Tensor: Training loss
         """
-        pos_inputs, neg_inputs = batch
-        pos_outputs = torch.sigmoid(self(pos_inputs))
-        neg_outputs = torch.sigmoid(self(neg_inputs))
-        loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
+        if self.training_mode == 'pointwise':
+            inputs, labels = batch
+            outputs = torch.sigmoid(self(inputs))
+            loss = self.bce_loss(outputs.flatten(), labels.flatten())
+        else:
+            pos_inputs, neg_inputs = batch
+            pos_outputs = torch.sigmoid(self(pos_inputs))
+            neg_outputs = torch.sigmoid(self(neg_inputs))
+            loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
         self.log('train_loss', loss)
         return loss
 

@@ -8,11 +8,70 @@ from torch.utils.data import Dataset
 
 # inputs vary for each model, hence we use Any here
 Input = Any
-TrainingInput = Tuple[Input, Input]
+PairwiseTrainingInput = Tuple[Input, Input]
+PointwiseTrainingInput = Tuple[Input, int]
 ValTestInput = Tuple[int, int, Input, int]
 
 
-class TrainDatasetBase(Dataset, abc.ABC):
+class PointwiseTrainDatasetBase(Dataset, abc.ABC):
+    """Abstract base class for pointwise training datasets. Methods to be implemented:
+        * get_single_input
+        * collate_fn (optional)
+
+    Args:
+        data_file (Path): Data file containing queries and documents
+        train_file (Path): Trainingset file
+    """
+    def __init__(self, data_file: Path, train_file: Path):
+        self.data_file = data_file
+        self.train_file = train_file
+
+        with h5py.File(train_file, 'r') as fp:
+            self.length = len(fp['q_ids'])
+
+    @abc.abstractmethod
+    def get_single_input(self, query: str, doc: str) -> Input:
+        """Create a single model input from a query and a document.
+
+        Args:
+            query (str): The query
+            doc (str): The document
+
+        Returns:
+            Input: The model input
+        """
+        pass
+
+    def __getitem__(self, index: int) -> PointwiseTrainingInput:
+        """Return inputs and label for pointwise training.
+
+        Args:
+            index (int): Item index
+
+        Returns:
+            PointwiseTrainingInput: Inputs and label for pointwise training
+        """
+        with h5py.File(self.train_file, 'r') as fp:
+            q_id = fp['q_ids'][index]
+            doc_id = fp['doc_ids'][index]
+            label = fp['labels'][index]
+
+        with h5py.File(self.data_file, 'r') as fp:
+            query = fp['queries'][q_id]
+            doc = fp['docs'][doc_id]
+
+        return self.get_single_input(query, doc), label
+
+    def __len__(self) -> int:
+        """Number of training instances.
+
+        Returns:
+            int: The dataset length
+        """
+        return self.length
+
+
+class PairwiseTrainDatasetBase(Dataset, abc.ABC):
     """Abstract base class for pairwise training datasets. Methods to be implemented:
         * get_single_input
         * collate_fn (optional)
@@ -41,14 +100,14 @@ class TrainDatasetBase(Dataset, abc.ABC):
         """
         pass
 
-    def __getitem__(self, index: int) -> TrainingInput:
+    def __getitem__(self, index: int) -> PairwiseTrainingInput:
         """Return a pair of positive and negative inputs for pairwise training.
 
         Args:
             index (int): Item index
 
         Returns:
-            TrainingInput: Positive and negative inputs for pairwise training
+            PairwiseTrainingInput: Positive and negative inputs for pairwise training
         """
         with h5py.File(self.train_file, 'r') as fp:
             q_id = fp['q_ids'][index]

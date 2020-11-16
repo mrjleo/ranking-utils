@@ -1,15 +1,93 @@
 import random
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Set, Tuple, List, Iterable
+from typing import Dict, Optional, Set, Tuple, List, Iterable
 
 import h5py
 from tqdm import tqdm
 import numpy as np
 
 
-class Trainingset(object):
-    """A trainingset iterator.
+class PointwiseTrainingset(object):
+    """A trainingset iterator for pointwise training. Negatives are sampled randomly from the corresponding query pools.
+
+    Args:
+        train_ids (Set[int]): Trainset query IDs
+        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance
+        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents
+        num_negatives (int): Number of negatives per positive
+    """
+    def __init__(self, train_ids: Set[int], qrels: Dict[int, Dict[int, int]], pools: Dict[int, Set[int]],
+                 num_negatives: int):
+        self.train_ids = train_ids
+        self.qrels = qrels
+        self.pools = pools
+        self.num_negatives = num_negatives
+        self.trainset = self._create_trainset()
+
+    def _create_trainset(self) -> List[Tuple[int, int, int]]:
+        """Create the trainingset as tuples of query ID, document ID, label.
+
+        Returns:
+            List[Tuple[int, int, int]]: The trainingset
+        """
+        result = []
+        # get all positives first
+        positives = defaultdict(list)
+        for q_id in self.qrels:
+            for doc_id, rel in self.qrels[q_id].items():
+                if rel > 0:
+                    positives[q_id].append(doc_id)
+                    result.extend([(q_id, doc_id, 1)] * self.num_negatives)
+        
+        # sample negatives
+        for q_id in self.qrels:
+            # all documents from the pool with no positive relevance
+            candidates = [doc_id for doc_id in self.pools[q_id] if self.qrels[q_id].get(doc_id, 0) <= 0]
+            # in case there are not enough candidates
+            num_neg = min(len(candidates), len(positives[q_id]) * self.num_negatives)
+            for doc_id in random.sample(candidates, num_neg):
+                result.append((q_id, doc_id, 0))
+
+        return result
+
+    def __len__(self) -> int:
+        """Dataset length.
+
+        Returns:
+            int: The number of training instances
+        """
+        return len(self.trainset)
+
+    def __iter__(self) -> Iterable[Tuple[int, int, int]]:
+        """Yield all training examples.
+
+        Yields:
+            Tuple[int, int, int]: Query ID, document ID, label
+        """
+        yield from self.trainset
+
+    def save(self, dest: Path):
+        """Save the pointwise trainingset.
+
+        Args:
+            dest (Path): File to create
+        """
+        num_items = len(self)
+        with h5py.File(dest, 'w') as fp:
+            ds = {
+                'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
+                'doc_ids': fp.create_dataset('doc_ids', (num_items,), dtype='int32'),
+                'labels': fp.create_dataset('labels', (num_items,), dtype='int32')
+            }
+            for i, (q_id, doc_id, label) in enumerate(tqdm(self, desc='Saving pointwise trainset')):
+                ds['q_ids'][i] = q_id
+                ds['doc_ids'][i] = doc_id
+                ds['labels'][i] = label
+
+
+class PairwiseTrainingset(object):
+    """A trainingset iterator for pairwise training. The number of examples per query in the trainset is balanced based on its number of positives.
 
     Args:
         train_ids (Set[int]): Trainset query IDs
@@ -153,7 +231,7 @@ class Trainingset(object):
         yield from self.trainset
 
     def save(self, dest: Path):
-        """Save the trainingset for pairwise training.
+        """Save the pairwise trainingset.
 
         Args:
             dest (Path): File to create
@@ -165,7 +243,7 @@ class Trainingset(object):
                 'pos_doc_ids': fp.create_dataset('pos_doc_ids', (num_items,), dtype='int32'),
                 'neg_doc_ids': fp.create_dataset('neg_doc_ids', (num_items,), dtype='int32')
             }
-            for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(tqdm(self, desc='Saving trainset')):
+            for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(tqdm(self, desc='Saving pairwise trainset')):
                 ds['q_ids'][i] = q_id
                 ds['pos_doc_ids'][i] = pos_doc_id
                 ds['neg_doc_ids'][i] = neg_doc_id
@@ -250,8 +328,6 @@ class Testset(object):
 class Dataset(object):
     """Dataset class that provides iterators over train-, val- and testset.
 
-    The number of examples per query in the trainset is balanced based on its number of positives.
-
     Validation- and testset contain all documents (corresponding to the query IDs in the set) from
     `pools`, which are to be re-ranked.
 
@@ -268,15 +344,12 @@ class Dataset(object):
         train_ids (Set[str]): Trainset query IDs
         val_ids (Set[str]): Validationset query IDs
         test_ids (Set[str]): Testset query IDs
-        num_negatives (int): Number of negatives per positive
-        query_limit (int): Maximum number of training examples per query
     """
     def __init__(self,
                  queries: Dict[str, str], docs: Dict[str, str],
                  qrels: Dict[str, List[Tuple[str, int]]],
                  pools: Dict[str, Set[str]],
-                 train_ids: Set[str], val_ids: Set[str], test_ids: Set[str],
-                 num_negatives: int, query_limit: int):
+                 train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]):
         # make sure no IDs are in any two sets
         assert len(train_ids & val_ids) == 0
         assert len(train_ids & test_ids) == 0
@@ -316,30 +389,40 @@ class Dataset(object):
         self.train_ids = set(map(self.int_q_ids.get, train_ids))
         self.val_ids = set(map(self.int_q_ids.get, val_ids))
         self.test_ids = set(map(self.int_q_ids.get, test_ids))
-        self.num_negatives = num_negatives
-        self.query_limit = query_limit
 
-    @property
-    def trainset(self) -> Trainingset:
-        """Trainingset iterator.
+    def get_pointwise_trainingset(self, num_negatives: int) -> PointwiseTrainingset:
+        """Pointwise trainingset iterator.
+
+        Args:
+            num_negatives (int): Number of negatives per positive
 
         Returns:
-            Trainset: The trainingset
+            PointwiseTrainingset: The trainingset
         """
-        return Trainingset(self.train_ids, self.qrels, self.pools, self.num_negatives, self.query_limit)
+        return PointwiseTrainingset(self.train_ids, self.qrels, self.pools, num_negatives)
 
-    @property
-    def valset(self) -> Testset:
-        """Validationset iterator
+    def get_pairwise_trainingset(self, num_negatives: int, query_limit: int) -> PairwiseTrainingset:
+        """Pairwise trainingset iterator.
+
+        Args:
+            num_negatives (int): Number of negatives per positive
+            query_limit (int): Maximum number of training examples per query
+
+        Returns:
+            PairwiseTrainingset: The trainingset
+        """
+        return PairwiseTrainingset(self.train_ids, self.qrels, self.pools, num_negatives, query_limit)
+
+    def get_valset(self) -> Testset:
+        """Validationset iterator.
 
         Returns:
             Testset: The validationset
         """
         return Testset(self.val_ids, self.qrels, self.pools)
 
-    @property
-    def testset(self) -> Testset:
-        """Testset iterator
+    def get_testset(self) -> Testset:
+        """Testset iterator.
 
         Returns:
             Testset: The testset
@@ -369,13 +452,21 @@ class Dataset(object):
                 ds['docs'][doc_id] = doc
                 ds['orig_doc_ids'][doc_id] = self.orig_doc_ids[doc_id]
 
-    def save(self, directory: Path):
-        """Save the collection, trainingset, validationset and testset.
+    def save(self, directory: Path,
+             num_negatives: Optional[int] = None,
+             pw_num_negatives: Optional[int] = None, pw_query_limit: Optional[int] = None):
+        """Save the collection, trainingsets, validationset and testset.
 
         Args:
             directory (Path): Where to save the files
+            num_negatives (Optional[int], optional): Number of negatives per positive (pointwise training). Defaults to None.
+            pw_num_negatives (Optional[int], optional): Number of negatives per positive (pairwise training). Defaults to None.
+            pw_query_limit (Optional[int], optional): Maximum number of training examples per query (pairwise training). Defaults to None.
         """
         self.save_collection(directory / 'data.h5')
-        self.trainset.save(directory / 'train.h5')
-        self.valset.save(directory / 'val.h5')
-        self.testset.save(directory / 'test.h5')
+        if num_negatives is not None:
+            self.get_pointwise_trainingset(num_negatives).save(directory / 'train_pointwise.h5')
+        if pw_num_negatives is not None and pw_query_limit is not None:
+            self.get_pairwise_trainingset(pw_num_negatives, pw_query_limit).save(directory / 'train_pairwise.h5')
+        self.get_valset().save(directory / 'val.h5')
+        self.get_testset().save(directory / 'test.h5')

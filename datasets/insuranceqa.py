@@ -12,10 +12,8 @@ class InsuranceQA(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negatives per positive
-        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
+    def __init__(self, args: argparse.Namespace):
         base_dir = Path(args.INSRQA_V2_DIR)
 
         vocab_file = base_dir / 'vocabulary'
@@ -62,7 +60,7 @@ class InsuranceQA(Dataset):
                         pools[q_id].add(doc_id)
 
         train_ids, val_ids, test_ids = sets
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
 
 
     @staticmethod

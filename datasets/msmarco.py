@@ -13,10 +13,8 @@ class MSMARCO(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negatives per positive
-        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
+    def __init__(self, args: argparse.Namespace):
         base_dir = Path(args.MSMARCO_DIR)
 
         # read queries
@@ -78,7 +76,7 @@ class MSMARCO(Dataset):
         train_ids = q_ids['qrels.train.tsv'] & all_ids
         val_ids = q_ids['qrels.dev.tsv'] & all_ids
         test_ids = q_ids['2019qrels-pass.txt'] & all_ids
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

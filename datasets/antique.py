@@ -12,10 +12,8 @@ class ANTIQUE(Dataset):
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments defined below
-        num_negatives (int): Number of negatives per positive
-        query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, args: argparse.Namespace, num_negatives: int, query_limit: int):
+    def __init__(self, args: argparse.Namespace):
         base_dir = Path(args.ANTIQUE_DIR)
         split_file = Path(args.SPLIT_FILE)
 
@@ -58,7 +56,7 @@ class ANTIQUE(Dataset):
 
         train_ids = q_ids['antique-train.qrel'] - val_ids
         test_ids = q_ids['antique-test.qrel']
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids, num_negatives, query_limit)
+        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
