@@ -59,7 +59,7 @@ class BaseRanker(LightningModule, abc.ABC):
         self.uses_ddp = uses_ddp
         if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
             self.training_mode = 'pointwise'
-            self.bce_loss = torch.nn.BCELoss()
+            self.bce = torch.nn.BCEWithLogitsLoss()
         else:
             assert issubclass(train_ds.__class__, PairwiseTrainDatasetBase)
             self.training_mode = 'pairwise'
@@ -130,8 +130,7 @@ class BaseRanker(LightningModule, abc.ABC):
         """
         if self.training_mode == 'pointwise':
             inputs, labels = batch
-            outputs = torch.sigmoid(self(inputs))
-            loss = self.bce_loss(outputs.flatten(), labels.flatten())
+            loss = self.bce(self(inputs).flatten(), labels.flatten())
         else:
             pos_inputs, neg_inputs = batch
             pos_outputs = torch.sigmoid(self(pos_inputs))
