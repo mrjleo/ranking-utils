@@ -43,11 +43,12 @@ class PointwiseTrainingset(object):
         # sample negatives
         for q_id in self.qrels:
             # all documents from the pool with no positive relevance
-            candidates = [doc_id for doc_id in self.pools[q_id] if self.qrels[q_id].get(doc_id, 0) <= 0]
+            candidates = [doc_id for doc_id in self.pools.get(q_id, []) if self.qrels[q_id].get(doc_id, 0) <= 0]
             # in case there are not enough candidates
             num_neg = min(len(candidates), len(positives[q_id]) * self.num_negatives)
-            for doc_id in random.sample(candidates, num_neg):
-                result.append((q_id, doc_id, 0))
+            if num_neg > 0:
+                for doc_id in random.sample(candidates, num_neg):
+                    result.append((q_id, doc_id, 0))
 
         return result
 
