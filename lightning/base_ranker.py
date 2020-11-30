@@ -139,7 +139,7 @@ class BaseRanker(LightningModule, abc.ABC):
         self.log('train_loss', loss)
         return loss
 
-    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Tuple[torch.Tensor]:
+    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Process a single validation batch.
 
         Args:
@@ -147,10 +147,10 @@ class BaseRanker(LightningModule, abc.ABC):
             batch_idx (int): Batch index
         
         Returns:
-            Tuple[torch.Tensor]: Query IDs, predictions and labels
+            Dict[str, torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
-        return q_ids, self(inputs), labels
+        return {'q_ids': q_ids, 'predictions': self(inputs), 'labels': labels}
 
     def test_step(self, batch: ValTestBatch, batch_idx: int):
         """Process a single test batch. The resulting query IDs, predictions and labels are written to files.
@@ -170,18 +170,16 @@ class BaseRanker(LightningModule, abc.ABC):
         save_dir = Path(self.logger.save_dir)
         self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
-    def validation_epoch_end(self, val_results: List[Tuple[torch.Tensor]]):
+    def validation_epoch_end(self, val_results: List[Dict[str, torch.Tensor]]):
         """Accumulate all validation batches and compute MAP and MRR@k. The results are approximate in DDP mode.
 
         Args:
-            val_results (List[Tuple[torch.Tensor]]): Query IDs, predictions and labels
-
-        Returns:
-            EvalResult: MAP and MRR@k
+            val_results (List[Dict[str, torch.Tensor]]): Query IDs, predictions and labels
         """
+        #print(val_results)
         temp = defaultdict(lambda: ([], []))
-        for q_ids, predictions, labels in val_results:
-            for q_id, (prediction,), label in zip(q_ids, predictions, labels):
+        for r in val_results:
+            for q_id, (prediction,), label in zip(r['q_ids'], r['predictions'], r['labels']):
                 # q_id is a tensor with one element, we convert it to an int to use it as dict key
                 q_id = int(q_id.cpu())
                 temp[q_id][0].append(prediction)
@@ -192,5 +190,5 @@ class BaseRanker(LightningModule, abc.ABC):
             labels = torch.stack(labels)
             aps.append(average_precision(predictions, labels))
             rrs.append(reciprocal_rank(predictions, labels, self.rr_k))
-        self.log('val_map', torch.mean(torch.stack(aps)), sync_dist=True, sync_dist_op='mean')
-        self.log('val_mrr', torch.mean(torch.stack(rrs)), sync_dist=True, sync_dist_op='mean')
+        self.log('val_map', torch.mean(torch.stack(aps)), sync_dist=self.uses_ddp, sync_dist_op='mean')
+        self.log('val_mrr', torch.mean(torch.stack(rrs)), sync_dist=self.uses_ddp, sync_dist_op='mean')
