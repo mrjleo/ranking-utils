@@ -1,6 +1,6 @@
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 import abc
 import torch
@@ -15,7 +15,8 @@ from qa_utils.lightning.metrics import average_precision, reciprocal_rank
 
 # input batches vary for each model, hence we use Any here
 InputBatch = Any
-TrainingBatch = Tuple[InputBatch, InputBatch]
+PointwiseTrainBatch = Tuple[InputBatch, torch.IntTensor]
+PairwiseTrainBatch = Tuple[InputBatch, InputBatch]
 ValTestBatch = Tuple[torch.IntTensor, torch.IntTensor, InputBatch, torch.IntTensor]
 
 
@@ -118,11 +119,11 @@ class BaseRanker(LightningModule, abc.ABC):
         return DataLoader(self.test_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
 
-    def training_step(self, batch: TrainingBatch, batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Union[PointwiseTrainBatch, PairwiseTrainBatch], batch_idx: int) -> torch.Tensor:
         """Train a single batch.
 
         Args:
-            batch (TrainingBatch): A training batch (pointwise or pairwise depending on the mode)
+            batch (Union[PointwiseTrainBatch, PairwiseTrainBatch]): A training batch, depending on the mode
             batch_idx (int): Batch index
 
         Returns:
@@ -170,13 +171,12 @@ class BaseRanker(LightningModule, abc.ABC):
         save_dir = Path(self.logger.save_dir)
         self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
-    def validation_epoch_end(self, val_results: List[Dict[str, torch.Tensor]]):
+    def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
         """Accumulate all validation batches and compute MAP and MRR@k. The results are approximate in DDP mode.
 
         Args:
-            val_results (List[Dict[str, torch.Tensor]]): Query IDs, predictions and labels
+            val_results (Iterable[Dict[str, torch.Tensor]]): Query IDs, predictions and labels
         """
-        #print(val_results)
         temp = defaultdict(lambda: ([], []))
         for r in val_results:
             for q_id, (prediction,), label in zip(r['q_ids'], r['predictions'], r['labels']):
