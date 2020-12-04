@@ -9,7 +9,8 @@ import numpy as np
 
 
 class PointwiseTrainingset(object):
-    """A trainingset iterator for pointwise training. Negatives are sampled randomly from the corresponding query pools.
+    """A trainingset iterator for pointwise training.
+    Negatives are sampled randomly from the corresponding query pools.
 
     Args:
         train_ids (Set[int]): Trainset query IDs
@@ -39,9 +40,9 @@ class PointwiseTrainingset(object):
                 if rel > 0:
                     positives[q_id].append(doc_id)
                     result.extend([(q_id, doc_id, 1)] * self.num_negatives)
-        
+
         # sample negatives
-        for q_id in self.qrels:
+        for q_id in self.train_ids:
             # all documents from the pool with no positive relevance
             candidates = [doc_id for doc_id in self.pools.get(q_id, []) if self.qrels[q_id].get(doc_id, 0) <= 0]
             # in case there are not enough candidates
@@ -91,7 +92,8 @@ class PointwiseTrainingset(object):
 
 
 class PairwiseTrainingset(object):
-    """A trainingset iterator for pairwise training. The number of examples per query in the trainset is balanced based on its number of positives.
+    """A trainingset iterator for pairwise training.
+    The number of examples per query is balanced based on its number of positives.
 
     Args:
         train_ids (Set[int]): Trainset query IDs
@@ -113,7 +115,7 @@ class PairwiseTrainingset(object):
 
     def _get_docs_by_relevance(self, q_id: int) -> Dict[int, Set[int]]:
         """Return all documents for a query from its pool and qrels, grouped by relevance.
-        Documents from the pool that have to associated relevance get a relevance of 0.
+        Documents from the pool that have no associated relevance get a relevance of 0.
 
         Args:
             q_id (int): The query ID
