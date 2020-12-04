@@ -34,7 +34,7 @@ class PointwiseTrainingset(object):
         result = []
         # get all positives first
         positives = defaultdict(list)
-        for q_id in self.qrels:
+        for q_id in self.train_ids:
             for doc_id, rel in self.qrels[q_id].items():
                 if rel > 0:
                     positives[q_id].append(doc_id)
@@ -49,6 +49,9 @@ class PointwiseTrainingset(object):
             if num_neg > 0:
                 for doc_id in random.sample(candidates, num_neg):
                     result.append((q_id, doc_id, 0))
+
+        for q_id, _, _ in result:
+            assert q_id in self.train_ids
 
         return result
 
@@ -200,6 +203,9 @@ class PairwiseTrainingset(object):
                 negatives = random.sample(negative_candidates, sample_size)
                 result.extend(zip([q_id] * sample_size, [positive] * sample_size, negatives))
 
+        for q_id, _, _ in result:
+            assert q_id in self.train_ids
+
         if len(result) > query_limit:
             return random.sample(result, query_limit)
         return result
@@ -278,6 +284,10 @@ class Testset(object):
             for doc_id in self.pools[q_id]:
                     label = 1 if self.qrels[q_id].get(doc_id, 0) > 0 else 0
                     result.append((q_id, doc_id, label))
+
+        for q_id, _, _ in result:
+            assert q_id in self.test_ids
+
         return result
 
     def __len__(self) -> int:
