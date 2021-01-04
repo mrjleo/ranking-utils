@@ -61,9 +61,10 @@ class BaseRanker(LightningModule, abc.ABC):
         if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
             self.training_mode = 'pointwise'
             self.bce = torch.nn.BCEWithLogitsLoss()
-        else:
-            assert issubclass(train_ds.__class__, PairwiseTrainDatasetBase)
+        elif issubclass(train_ds.__class__, PairwiseTrainDatasetBase):
             self.training_mode = 'pairwise'
+        else:
+            self.training_mode = None
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
@@ -132,11 +133,13 @@ class BaseRanker(LightningModule, abc.ABC):
         if self.training_mode == 'pointwise':
             inputs, labels = batch
             loss = self.bce(self(inputs).flatten(), labels.flatten())
-        else:
+        elif self.training_mode == 'pairwise':
             pos_inputs, neg_inputs = batch
             pos_outputs = torch.sigmoid(self(pos_inputs))
             neg_outputs = torch.sigmoid(self(neg_inputs))
             loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
+        else:
+            raise RuntimeError('Unsupported training dataset (should subclass PointwiseTrainDatasetBase or PairwiseTrainDatasetBase)')
         self.log('train_loss', loss)
         return loss
 
