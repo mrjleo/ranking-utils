@@ -319,7 +319,6 @@ class Testset(object):
             ds = {
                 'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
                 'doc_ids': fp.create_dataset('doc_ids', (num_items,), dtype='int32'),
-                'queries': fp.create_dataset('queries', (num_items,), dtype='int32'),
                 'labels': fp.create_dataset('labels', (num_items,), dtype='int32'),
                 'offsets': fp.create_dataset('offsets', (len(self.test_ids),), dtype='int32')
             }

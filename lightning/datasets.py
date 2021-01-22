@@ -148,7 +148,7 @@ class ValTestDatasetBase(Dataset, abc.ABC):
 
         with h5py.File(val_test_file, 'r') as fp:
             self.offsets = list(fp['offsets'])
-            self.length = len(fp['queries'])
+            self.length = len(fp['q_ids'])
 
     def get_original_query_id(self, q_id: int) -> str:
         """Return the original (string) query ID for a given internal ID.
