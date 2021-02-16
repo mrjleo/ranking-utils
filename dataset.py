@@ -1,4 +1,6 @@
+import abc
 import random
+import argparse
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, Optional, Set, Tuple, List, Iterable
@@ -507,3 +509,78 @@ class Dataset(object):
                 self.get_pairwise_trainingset(fold, pw_num_negatives, pw_query_limit).save(fold_dir / 'train_pairwise.h5')
             self.get_valset(fold).save(fold_dir / 'val.h5')
             self.get_testset(fold).save(fold_dir / 'test.h5')
+
+
+class ParsableDataset(Dataset, abc.ABC):
+    def __init__(self, args: argparse.Namespace):
+        """Abstract base class for datasets are parsed from files.
+
+        Args:
+            args (argparse.Namespace): Namespace that contains the arguments
+        """
+        self.directory = Path(args.DIRECTORY)
+
+        queries = self.get_queries()
+        docs = self.get_docs()
+        qrels = self.get_qrels()
+        pools = self.get_pools()
+        super().__init__(queries, docs, qrels, pools)
+
+        for f in self.get_folds():
+            self.add_fold(*f)
+
+    @abc.abstractmethod
+    def get_queries(self) -> Dict[str, str]:
+        """Return all queries.
+
+        Returns:
+            Dict[str, str]: Query IDs mapped to queries
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_docs(self) -> Dict[str, str]:
+        """Return all documents
+
+        Returns:
+            Dict[str, str]: Document IDs mapped to documents
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_qrels(self) -> Dict[str, Dict[str, int]]:
+        """Return all query relevances.
+
+        Returns:
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_pools(self) -> Dict[str, Set[str]]:
+        """Return all pools.
+
+        Returns:
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
+        """Return all folds.
+
+        Returns:
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+        """
+        pass
+
+    @staticmethod
+    def add_subparser(subparsers: argparse._SubParsersAction, name: str):
+        """Add a dataset-specific subparser with all required arguments.
+
+        Args:
+            subparsers (argparse._SubParsersAction): Subparsers to add a parser to
+            name (str): Parser name
+        """
+        sp = subparsers.add_parser(name)
+        sp.add_argument('DIRECTORY', help='Dataset directory containing all files')

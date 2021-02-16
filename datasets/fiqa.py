@@ -1,66 +1,84 @@
 import csv
 import pickle
-import argparse
 from pathlib import Path
 from collections import defaultdict
+from typing import Dict, Iterable, Set, Tuple
 
-from ranking_utils.datasets.dataset import Dataset
+from ranking_utils.dataset import ParsableDataset
 
 
-class FiQA(Dataset):
-    """FiQA dataset class.
+class FiQA(ParsableDataset):
+    """FiQA dataset class."""
+    def get_queries(self) -> Dict[str, str]:
+        """Return all queries.
 
-    Args:
-        args (argparse.Namespace): Namespace that contains the arguments defined below
-    """
-    def __init__(self, args: argparse.Namespace):
-        base_dir = Path(args.FIQA_DIR)
-        split_file = Path(args.SPLIT_FILE)
-
-        question_file = base_dir / 'FiQA_train_question_final.tsv'
-        print(f'reading {question_file}...')
+        Returns:
+            Dict[str, str]: Query IDs mapped to queries
+        """
         queries = {}
-        with open(question_file, encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8') as fp:
             # skip header
             next(fp)
             for _, q_id, question, _ in csv.reader(fp, delimiter='\t'):
                 queries[q_id] = question
+        return queries
 
-        doc_file = base_dir / 'FiQA_train_doc_final.tsv'
-        print(f'reading {doc_file}...')
+    def get_docs(self) -> Dict[str, str]:
+        """Return all documents
+
+        Returns:
+            Dict[str, str]: Document IDs mapped to documents
+        """
         docs = {}
-        with open(doc_file, encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_doc_final.tsv', encoding='utf-8') as fp:
             # skip header
             next(fp)
             for _, doc_id, doc, _ in csv.reader(fp, delimiter='\t'):
                 docs[doc_id] = doc
+        return docs
 
-        question_doc_file = base_dir / 'FiQA_train_question_doc_final.tsv'
-        print(f'reading {question_doc_file}...')
+    def get_qrels(self) -> Dict[str, Dict[str, int]]:
+        """Return all query relevances.
+
+        Returns:
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+        """
         qrels = defaultdict(dict)
-        with open(question_doc_file, encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_question_doc_final.tsv', encoding='utf-8') as fp:
             # skip header
             next(fp)
             for _, q_id, doc_id in csv.reader(fp, delimiter='\t'):
                 qrels[q_id][doc_id] = 1
+        return qrels
 
-        print(f'reading {split_file}...')
-        with open(split_file, 'rb') as fp:
-            pools, val_ids, test_ids = pickle.load(fp)
-        assert len(queries) == len(pools)
+    def get_pools(self) -> Dict[str, Set[str]]:
+        """Return all pools.
 
-        train_ids = set(queries.keys()) - val_ids - test_ids
-        super().__init__(queries, docs, qrels, pools)
-        self.add_fold(train_ids, val_ids, test_ids)
-
-    @staticmethod
-    def add_subparser(subparsers: argparse._SubParsersAction, name: str):
-        """Add a dataset-specific subparser with all required arguments.
-
-        Args:
-            subparsers (argparse._SubParsersAction): Subparsers to add a parser to
-            name (str): Parser name
+        Returns:
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
         """
-        sp = subparsers.add_parser(name)
-        sp.add_argument('FIQA_DIR', help='FiQA dataset directory')
-        sp.add_argument('SPLIT_FILE', help='FiQA split')
+        split_file = Path(__file__).parent.absolute() / 'splits' / 'fiqa_split.pkl'
+        with open(split_file, 'rb') as fp:
+            pools, _, _ = pickle.load(fp)
+        return pools
+
+    def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
+        """Return all folds.
+
+        Returns:
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+        """
+        split_file = Path(__file__).parent.absolute() / 'splits' / 'fiqa_split.pkl'
+        with open(split_file, 'rb') as fp:
+            _, val_ids, test_ids = pickle.load(fp)
+
+        train_ids = set()
+        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8') as fp:
+            # skip header
+            next(fp)
+            for _, q_id, _, _ in csv.reader(fp, delimiter='\t'):
+                if q_id not in val_ids | test_ids:
+                    train_ids.add(q_id)
+
+        return [(train_ids, val_ids, test_ids)]
+        

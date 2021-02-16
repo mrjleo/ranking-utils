@@ -3,21 +3,26 @@ import gzip
 import argparse
 from pathlib import Path
 from collections import defaultdict
+from typing import Dict, Iterable, Set, Tuple
 
-from ranking_utils.datasets.dataset import Dataset
+from ranking_utils.dataset import ParsableDataset
 
 
-class InsuranceQA(Dataset):
+class InsuranceQA(ParsableDataset):
     """InsuranceQA dataset class.
 
     Args:
-        args (argparse.Namespace): Namespace that contains the arguments defined below
+        args (argparse.Namespace): Namespace that contains the arguments
     """
     def __init__(self, args: argparse.Namespace):
-        base_dir = Path(args.INSRQA_V2_DIR)
+        self.directory = Path(args.DIRECTORY)
+        self.examples_per_query = args.examples_per_query
+        self._read_all()
+        super().__init__(args)
 
-        vocab_file = base_dir / 'vocabulary'
-        print(f'reading {vocab_file}...')
+    def _read_all(self):
+        """Read the dataset."""
+        vocab_file = self.directory / 'vocabulary'
         vocab = {}
         with open(vocab_file, encoding='utf-8') as fp:
             for idx, word in csv.reader(fp, delimiter='\t', quotechar=None):
@@ -26,42 +31,78 @@ class InsuranceQA(Dataset):
         def _decode(idx_list):
             return ' '.join(map(vocab.get, idx_list))
 
-        l2a_file = base_dir / 'InsuranceQA.label2answer.token.encoded.gz'
-        print(f'reading {l2a_file}...')
-        docs = {}
+        l2a_file = self.directory / 'InsuranceQA.label2answer.token.encoded.gz'
+        self.docs = {}
         with gzip.open(l2a_file) as fp:
             for line in fp:
                 doc_id, doc_idxs = line.decode('utf-8').split('\t')
-                docs[doc_id] = _decode(doc_idxs.split())
+                self.docs[doc_id] = _decode(doc_idxs.split())
 
         # read all qrels and top documents
         files = [
-            base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.train.encoded.gz',
-            base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.valid.encoded.gz',
-            base_dir / f'InsuranceQA.question.anslabel.token.{args.examples_per_query}.pool.solr.test.encoded.gz'
+            self.directory / f'InsuranceQA.question.anslabel.token.{self.examples_per_query}.pool.solr.train.encoded.gz',
+            self.directory / f'InsuranceQA.question.anslabel.token.{self.examples_per_query}.pool.solr.valid.encoded.gz',
+            self.directory / f'InsuranceQA.question.anslabel.token.{self.examples_per_query}.pool.solr.test.encoded.gz'
         ]
         sets = [set(), set(), set()]
         prefixes = ['train', 'val', 'test']
 
-        queries, qrels, pools = {}, defaultdict(dict), defaultdict(set)
+        self.queries, self.qrels, self.pools = {}, defaultdict(dict), defaultdict(set)
         for f, ids, prefix in zip(files, sets, prefixes):
-            print(f'reading {f}...')
             with gzip.open(f) as fp:
                 for i, line in enumerate(fp):
                     # we need to make the query IDs unique
                     q_id = f'{prefix}_{i}'
                     _, q_idxs, gt, pool = line.decode('utf-8').split('\t')
-                    queries[q_id] = _decode(q_idxs.split())
+                    self.queries[q_id] = _decode(q_idxs.split())
 
                     ids.add(q_id)
                     for doc_id in gt.split():
-                        qrels[q_id][doc_id] = 1
+                        self.qrels[q_id][doc_id] = 1
                     for doc_id in pool.split():
-                        pools[q_id].add(doc_id)
+                        self.pools[q_id].add(doc_id)
 
-        train_ids, val_ids, test_ids = sets
-        super().__init__(queries, docs, qrels, pools)
-        self.add_fold(train_ids, val_ids, test_ids)
+        self.train_ids, self.val_ids, self.test_ids = sets
+
+    def get_queries(self) -> Dict[str, str]:
+        """Return all queries.
+
+        Returns:
+            Dict[str, str]: Query IDs mapped to queries
+        """
+        return self.queries
+
+    def get_docs(self) -> Dict[str, str]:
+        """Return all documents
+
+        Returns:
+            Dict[str, str]: Document IDs mapped to documents
+        """
+        return self.docs
+
+    def get_qrels(self) -> Dict[str, Dict[str, int]]:
+        """Return all query relevances.
+
+        Returns:
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+        """
+        return self.qrels
+
+    def get_pools(self) -> Dict[str, Set[str]]:
+        """Return all pools.
+
+        Returns:
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+        """
+        return self.pools
+
+    def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
+        """Return all folds.
+
+        Returns:
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+        """
+        return [(self.train_ids, self.val_ids, self.test_ids)]
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
@@ -72,6 +113,5 @@ class InsuranceQA(Dataset):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('INSRQA_V2_DIR', help='InsuranceQA V2 dataset directory')
-        sp.add_argument('--examples_per_query', type=int, choices=[100, 500, 1000, 1500],
-                        default=500, help='How many examples per query in the dev- and testset')
+        sp.add_argument('DIRECTORY', help='Dataset directory containing all files')
+        sp.add_argument('--examples_per_query', type=int, choices=[100, 500, 1000, 1500], default=500, help='How many examples per query in the dev- and testset')
