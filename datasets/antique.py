@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from collections import defaultdict
 
-from qa_utils.datasets.dataset import Dataset
+from ranking_utils.datasets.dataset import Dataset
 
 
 class ANTIQUE(Dataset):

@@ -1,7 +1,7 @@
 from typing import Iterable
 from torch.utils.data.distributed import DistributedSampler
 
-from qa_utils.lightning.datasets import ValTestDatasetBase
+from ranking_utils.lightning.datasets import ValTestDatasetBase
 
 
 class DistributedQuerySampler(DistributedSampler):

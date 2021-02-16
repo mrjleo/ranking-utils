@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from pytorch_lightning import LightningModule
 
-from qa_utils.metrics import average_precision, reciprocal_rank
-from qa_utils.lightning.sampler import DistributedQuerySampler
-from qa_utils.lightning.datasets import PointwiseTrainDatasetBase, PairwiseTrainDatasetBase, ValTestDatasetBase
+from ranking_utils.metrics import average_precision, reciprocal_rank
+from ranking_utils.lightning.sampler import DistributedQuerySampler
+from ranking_utils.lightning.datasets import PointwiseTrainDatasetBase, PairwiseTrainDatasetBase, ValTestDatasetBase
 
 
 # input batches vary for each model, hence we use Any here

@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
-from qa_utils.datasets.dataset import Dataset
+from ranking_utils.datasets.dataset import Dataset
 
 
 class MSMARCO(Dataset):
