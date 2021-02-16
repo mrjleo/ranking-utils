@@ -25,7 +25,7 @@ class FiQA(ParsableDataset):
         return queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents
+        """Return all documents.
 
         Returns:
             Dict[str, str]: Document IDs mapped to documents

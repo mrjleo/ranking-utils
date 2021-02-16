@@ -24,7 +24,7 @@ class ANTIQUE(ParsableDataset):
         return queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents
+        """Return all documents.
 
         Returns:
             Dict[str, str]: Document IDs mapped to documents
@@ -59,7 +59,7 @@ class ANTIQUE(ParsableDataset):
         split_file = Path(__file__).parent.absolute() / 'splits' / 'antique_split.pkl'
         with open(split_file, 'rb') as fp:
             pools, _ = pickle.load(fp)
-        
+
         # for the testset, we create the pools from the qrels
         with open(self.directory / 'antique-test.qrel', encoding='utf-8') as fp:
             for line in fp:
@@ -76,15 +76,15 @@ class ANTIQUE(ParsableDataset):
         split_file = Path(__file__).parent.absolute() / 'splits' / 'antique_split.pkl'
         with open(split_file, 'rb') as fp:
             _, val_ids = pickle.load(fp)
-        
+
         train_ids, test_ids = set(), set()
-    
+
         with open(self.directory / 'antique-train.qrel', encoding='utf-8') as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()
                 if q_id not in val_ids:
                     train_ids.add(q_id)
-        
+
         with open(self.directory / 'antique-test.qrel', encoding='utf-8') as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()

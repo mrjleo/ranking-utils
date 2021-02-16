@@ -1,3 +1,4 @@
+import sys
 import csv
 import argparse
 from pathlib import Path
@@ -7,6 +8,11 @@ from typing import Dict, Iterable, Set, Tuple
 from tqdm import tqdm
 
 from ranking_utils.dataset import ParsableDataset
+from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
+
+
+# some documents are longer than the default limit
+csv.field_size_limit(sys.maxsize)
 
 
 class TRECDL2019Passage(ParsableDataset):
@@ -91,7 +97,7 @@ class TRECDL2019Passage(ParsableDataset):
         return self.queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents
+        """Return all documents.
 
         Returns:
             Dict[str, str]: Document IDs mapped to documents
@@ -113,6 +119,92 @@ class TRECDL2019Passage(ParsableDataset):
             Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
         """
         return self.pools
+
+    def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
+        """Return all folds.
+
+        Returns:
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+        """
+        return [(self.train_ids, self.val_ids, self.test_ids)]
+
+
+class TRECDL2019Document(ParsableDataset):
+    """TREC-DL 2019 document ranking dataset class.
+
+    Args:
+        args (argparse.Namespace): Namespace that contains the arguments
+    """
+    def __init__(self, args: argparse.Namespace):
+        self.directory = Path(args.DIRECTORY)
+        self._read_queries()
+        super().__init__(args)
+
+    def _read_queries(self):
+        """Read the queries and split."""
+        def _read_queries(fname):
+            result = {}
+            with open(fname, encoding='utf-8') as fp:
+                for q_id, query in csv.reader(fp, delimiter='\t'):
+                    result[q_id] = query
+            return result
+        train_queries = _read_queries(self.directory / 'msmarco-doctrain-queries.tsv')
+        dev_queries = _read_queries(self.directory / 'msmarco-docdev-queries.tsv')
+        test_queries = _read_queries(self.directory / 'msmarco-test2019-queries.tsv')
+
+        self.queries = {}
+        self.queries.update(train_queries)
+        self.queries.update(dev_queries)
+        self.queries.update(test_queries)
+
+        self.train_ids = set(train_queries.keys())
+        self.test_ids = set(test_queries.keys())
+        self.val_ids = set(dev_queries.keys())
+
+    def get_queries(self) -> Dict[str, str]:
+        """Return all queries.
+
+        Returns:
+            Dict[str, str]: Query IDs mapped to queries
+        """
+        return self.queries
+
+    def get_docs(self) -> Dict[str, str]:
+        """Return all documents.
+
+        Returns:
+            Dict[str, str]: Document IDs mapped to documents
+        """
+        docs = {}
+        with open(self.directory / 'msmarco-docs.tsv', encoding='utf-8') as fp:
+            for doc_id, _, title, body in tqdm(csv.reader(fp, delimiter='\t'), total=3213835):
+                doc = title + '. ' + body
+                docs[doc_id] = doc
+        return docs
+
+    def get_qrels(self) -> Dict[str, Dict[str, int]]:
+        """Return all query relevances.
+
+        Returns:
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+        """
+        qrels = {}
+        qrels.update(read_qrels_trec(self.directory / 'msmarco-doctrain-qrels.tsv'))
+        qrels.update(read_qrels_trec(self.directory / 'msmarco-docdev-qrels.tsv'))
+        qrels.update(read_qrels_trec(self.directory / '2019qrels-docs.txt'))
+        return qrels
+
+    def get_pools(self) -> Dict[str, Set[str]]:
+        """Return all pools.
+
+        Returns:
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+        """
+        top = {}
+        top.update(read_top_trec(self.directory / 'msmarco-doctrain-top100'))
+        top.update(read_top_trec(self.directory / 'msmarco-docdev-top100'))
+        top.update(read_top_trec(self.directory / 'msmarco-doctest2019-top100'))
+        return top
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
         """Return all folds.
