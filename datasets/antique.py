@@ -56,7 +56,8 @@ class ANTIQUE(Dataset):
 
         train_ids = q_ids['antique-train.qrel'] - val_ids
         test_ids = q_ids['antique-test.qrel']
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
+        super().__init__(queries, docs, qrels, pools)
+        self.add_fold(train_ids, val_ids, test_ids)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

@@ -76,7 +76,8 @@ class MSMARCO(Dataset):
         train_ids = q_ids['qrels.train.tsv'] & all_ids
         val_ids = q_ids['qrels.dev.tsv'] & all_ids
         test_ids = q_ids['2019qrels-pass.txt'] & all_ids
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
+        super().__init__(queries, docs, qrels, pools)
+        self.add_fold(train_ids, val_ids, test_ids)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

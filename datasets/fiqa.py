@@ -50,7 +50,8 @@ class FiQA(Dataset):
         assert len(queries) == len(pools)
 
         train_ids = set(queries.keys()) - val_ids - test_ids
-        super().__init__(queries, docs, qrels, pools, train_ids, val_ids, test_ids)
+        super().__init__(queries, docs, qrels, pools)
+        self.add_fold(train_ids, val_ids, test_ids)
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):

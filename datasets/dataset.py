@@ -352,20 +352,13 @@ class Dataset(object):
         queries (Dict[str, str]): Query IDs mapped to queries
         docs (Dict[str, str]): Document IDs mapped to documents
         qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance
-        pools (Dict[str, Set[str]]): Query IDs mapped to top-k retrieved documents
-        train_ids (Set[str]): Trainset query IDs
-        val_ids (Set[str]): Validationset query IDs
-        test_ids (Set[str]): Testset query IDs
+        pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents
     """
     def __init__(self,
                  queries: Dict[str, str], docs: Dict[str, str],
                  qrels: Dict[str, List[Tuple[str, int]]],
-                 pools: Dict[str, Set[str]],
-                 train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]):
-        # make sure no IDs are in any two sets
-        assert len(train_ids & val_ids) == 0
-        assert len(train_ids & test_ids) == 0
-        assert len(val_ids & test_ids) == 0
+                 pools: Dict[str, Set[str]]):
+        self.folds = []
 
         # assign unique integer IDs to queries and docs, but keep mappings from and to the original IDs
         self.orig_q_ids, self.int_q_ids = {}, {}
@@ -398,48 +391,76 @@ class Dataset(object):
             int_doc_ids = {self.int_doc_ids[orig_doc_id] for orig_doc_id in orig_doc_ids if orig_doc_id in self.int_doc_ids}
             self.pools[int_q_id] = int_doc_ids
 
-        self.train_ids = set(map(self.int_q_ids.get, train_ids))
-        self.val_ids = set(map(self.int_q_ids.get, val_ids))
-        self.test_ids = set(map(self.int_q_ids.get, test_ids))
-
-    def get_pointwise_trainingset(self, num_negatives: int) -> PointwiseTrainingset:
-        """Pointwise trainingset iterator.
+    def add_fold(self, train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]):
+        """Add a new fold.
 
         Args:
+            train_ids (Set[str]): Trainset query IDs
+            val_ids (Set[str]): Validationset query IDs
+            test_ids (Set[str]): Testset query IDs
+        """
+        # make sure no IDs are in any two sets
+        assert len(train_ids & val_ids) == 0
+        assert len(train_ids & test_ids) == 0
+        assert len(val_ids & test_ids) == 0
+
+        # convert to integer IDs
+        train_ids = set(map(self.int_q_ids.get, train_ids))
+        val_ids = set(map(self.int_q_ids.get, val_ids))
+        test_ids = set(map(self.int_q_ids.get, test_ids))
+
+        self.folds.append((train_ids, val_ids, test_ids))
+
+    def get_pointwise_trainingset(self, fold: int, num_negatives: int) -> PointwiseTrainingset:
+        """Pointwise trainingset iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID
             num_negatives (int): Number of negatives per positive
 
         Returns:
             PointwiseTrainingset: The trainingset
         """
-        return PointwiseTrainingset(self.train_ids, self.qrels, self.pools, num_negatives)
+        train_ids = self.folds[fold][0]
+        return PointwiseTrainingset(train_ids, self.qrels, self.pools, num_negatives)
 
-    def get_pairwise_trainingset(self, num_negatives: int, query_limit: int) -> PairwiseTrainingset:
-        """Pairwise trainingset iterator.
+    def get_pairwise_trainingset(self, fold: int, num_negatives: int, query_limit: int) -> PairwiseTrainingset:
+        """Pairwise trainingset iterator for a given fold.
 
         Args:
+            fold (int): Fold ID
             num_negatives (int): Number of negatives per positive
             query_limit (int): Maximum number of training examples per query
 
         Returns:
             PairwiseTrainingset: The trainingset
         """
-        return PairwiseTrainingset(self.train_ids, self.qrels, self.pools, num_negatives, query_limit)
+        train_ids = self.folds[fold][0]
+        return PairwiseTrainingset(train_ids, self.qrels, self.pools, num_negatives, query_limit)
 
-    def get_valset(self) -> Testset:
-        """Validationset iterator.
+    def get_valset(self, fold: int) -> Testset:
+        """Validationset iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID
 
         Returns:
             Testset: The validationset
         """
-        return Testset(self.val_ids, self.qrels, self.pools)
+        val_ids = self.folds[fold][1]
+        return Testset(val_ids, self.qrels, self.pools)
 
-    def get_testset(self) -> Testset:
-        """Testset iterator.
+    def get_testset(self, fold: int) -> Testset:
+        """Testset iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID
 
         Returns:
             Testset: The testset
         """
-        return Testset(self.test_ids, self.qrels, self.pools)
+        test_ids = self.folds[fold][2]
+        return Testset(test_ids, self.qrels, self.pools)
 
     def save_collection(self, dest: Path):
         """Save the collection (queries and documents). Use the unique integer IDs for queries and documents.
@@ -467,7 +488,7 @@ class Dataset(object):
     def save(self, directory: Path,
              num_negatives: Optional[int] = None,
              pw_num_negatives: Optional[int] = None, pw_query_limit: Optional[int] = None):
-        """Save the collection, trainingsets, validationset and testset.
+        """Save the collection and all folds of trainingsets, validationset and testset.
 
         Args:
             directory (Path): Where to save the files
@@ -475,10 +496,14 @@ class Dataset(object):
             pw_num_negatives (Optional[int], optional): Number of negatives per positive (pairwise training). Defaults to None.
             pw_query_limit (Optional[int], optional): Maximum number of training examples per query (pairwise training). Defaults to None.
         """
+        directory.mkdir(parents=True, exist_ok=True)
         self.save_collection(directory / 'data.h5')
-        if num_negatives is not None:
-            self.get_pointwise_trainingset(num_negatives).save(directory / 'train_pointwise.h5')
-        if pw_num_negatives is not None and pw_query_limit is not None:
-            self.get_pairwise_trainingset(pw_num_negatives, pw_query_limit).save(directory / 'train_pairwise.h5')
-        self.get_valset().save(directory / 'val.h5')
-        self.get_testset().save(directory / 'test.h5')
+        for fold in range(len(self.folds)):
+            fold_dir = directory / f'fold_{fold}'
+            fold_dir.mkdir(parents=True, exist_ok=True)
+            if num_negatives is not None:
+                self.get_pointwise_trainingset(fold, num_negatives).save(fold_dir / 'train_pointwise.h5')
+            if pw_num_negatives is not None and pw_query_limit is not None:
+                self.get_pairwise_trainingset(fold, pw_num_negatives, pw_query_limit).save(fold_dir / 'train_pairwise.h5')
+            self.get_valset(fold).save(fold_dir / 'val.h5')
+            self.get_testset(fold).save(fold_dir / 'test.h5')
