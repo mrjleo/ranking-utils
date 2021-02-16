@@ -10,7 +10,7 @@ from ranking_utils.dataset import ParsableDataset
 
 
 class TRECDL2019Passage(ParsableDataset):
-    """TREC-DL 2019 passage ranking dataset.
+    """TREC-DL 2019 passage ranking dataset class.
 
     Args:
         args (argparse.Namespace): Namespace that contains the arguments

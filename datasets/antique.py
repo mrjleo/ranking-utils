@@ -8,7 +8,8 @@ from ranking_utils.dataset import ParsableDataset
 
 
 class ANTIQUE(ParsableDataset):
-    """ANTIQUE dataset class."""
+    """ANTIQUE dataset class.
+    """
     def get_queries(self) -> Dict[str, str]:
         """Return all queries.
 

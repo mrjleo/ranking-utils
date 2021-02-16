@@ -8,7 +8,8 @@ from ranking_utils.dataset import ParsableDataset
 
 
 class FiQA(ParsableDataset):
-    """FiQA dataset class."""
+    """FiQA dataset class.
+    """
     def get_queries(self) -> Dict[str, str]:
         """Return all queries.
 

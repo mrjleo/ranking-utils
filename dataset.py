@@ -6,8 +6,8 @@ from collections import defaultdict
 from typing import Dict, Optional, Set, Tuple, List, Iterable
 
 import h5py
-from tqdm import tqdm
 import numpy as np
+from tqdm import tqdm
 
 
 class PointwiseTrainingset(object):
@@ -513,7 +513,7 @@ class Dataset(object):
 
 class ParsableDataset(Dataset, abc.ABC):
     def __init__(self, args: argparse.Namespace):
-        """Abstract base class for datasets are parsed from files.
+        """Abstract base class for datasets that are parsed from files.
 
         Args:
             args (argparse.Namespace): Namespace that contains the arguments
