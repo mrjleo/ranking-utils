@@ -17,7 +17,8 @@ def read_qrels_trec(fname: Path) -> Dict[str, Dict[str, int]]:
     """
     qrels = defaultdict(dict)
     with open(fname, encoding='utf-8') as fp:
-        for row in csv.reader(fp, delimiter=' '):
+        for line in fp:
+            row = line.split()
             q_id = row[0]
             doc_id = row[2]
             rel = int(row[3])
@@ -36,7 +37,8 @@ def read_top_trec(fname: Path) -> Dict[int, Set[str]]:
     """
     top = defaultdict(set)
     with open(fname, encoding='utf-8') as fp:
-        for row in csv.reader(fp, delimiter=' '):
+        for line in fp:
+            row = line.split()
             q_id = row[0]
             doc_id = row[2]
             top[q_id].add(doc_id)
@@ -47,10 +49,10 @@ class TREC(ParsableDataset):
     """Generic TREC ranking dataset class.
 
     The directory must contain the following file structure:
-        * queries.txt -- queries, TREC format
-        * documents.txt -- documents, TREC format
-        * qrels.txt -- QRels, TREC format
-        * top.txt -- Top retrieved documents for each query (to be re-ranked), TREC format
+        * queries.tsv -- queries, TREC format (tab separated)
+        * documents.tsv -- documents, TREC format (tab separated)
+        * qrels.tsv -- QRels, TREC format (space or tab separated)
+        * top.tsv -- Top retrieved documents for each query (to be re-ranked), TREC format (space or tab separated)
         * folds -- directory
             * fold_0 -- directory
                 * train_ids.txt -- training query IDs, one per line
@@ -67,7 +69,7 @@ class TREC(ParsableDataset):
             Dict[str, str]: Query IDs mapped to queries
         """
         queries = {}
-        with open(self.directory / 'queries.txt', encoding='utf-8') as fp:
+        with open(self.directory / 'queries.tsv', encoding='utf-8') as fp:
             for q_id, query, _, _ in csv.reader(fp, delimiter='\t'):
                 queries[q_id] = query
         return queries
@@ -79,7 +81,7 @@ class TREC(ParsableDataset):
             Dict[str, str]: Document IDs mapped to documents
         """
         docs = {}
-        with open(self.directory / 'documents.txt', encoding='utf-8') as fp:
+        with open(self.directory / 'documents.tsv', encoding='utf-8') as fp:
             for doc_id, doc in csv.reader(fp, delimiter='\t'):
                 docs[doc_id] = doc
         return docs
@@ -90,7 +92,7 @@ class TREC(ParsableDataset):
         Returns:
             Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
         """
-        return read_qrels_trec(self.directory / 'qrels.txt')
+        return read_qrels_trec(self.directory / 'qrels.tsv')
 
     def get_pools(self) -> Dict[str, Set[str]]:
         """Return all pools.
@@ -98,7 +100,7 @@ class TREC(ParsableDataset):
         Returns:
             Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
         """
-        return read_top_trec(self.directory / 'top.txt')
+        return read_top_trec(self.directory / 'top.tsv')
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
         """Return all folds.
