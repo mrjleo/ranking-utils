@@ -1,4 +1,5 @@
 import abc
+import csv
 import random
 import argparse
 from pathlib import Path
@@ -487,10 +488,25 @@ class Dataset(object):
                 ds['docs'][doc_id] = doc
                 ds['orig_doc_ids'][doc_id] = self.orig_doc_ids[doc_id]
 
+    def save_qrels(self, dest: Path):
+        """Save the QRels as a tab-separated file to be used with TREC-eval.
+        Positive values indicate relevant documents. Zero or negative values indicate irrelevant documents.
+
+        Args:
+            dest (Path): The file to create
+        """
+        with open(dest, 'w') as fp:
+            writer = csv.writer(fp, delimiter='\t')
+            for q_id in self.qrels:
+                for doc_id, rel in self.qrels[q_id].items():
+                    orig_q_id = self.orig_q_ids[q_id]
+                    orig_doc_id = self.orig_doc_ids[doc_id]
+                    writer.writerow([orig_q_id, 0, orig_doc_id, str(rel)])
+
     def save(self, directory: Path,
              num_negatives: Optional[int] = None,
              pw_num_negatives: Optional[int] = None, pw_query_limit: Optional[int] = None):
-        """Save the collection and all folds of trainingsets, validationset and testset.
+        """Save the collection, QRels and all folds of trainingsets, validationset and testset.
 
         Args:
             directory (Path): Where to save the files
@@ -500,6 +516,7 @@ class Dataset(object):
         """
         directory.mkdir(parents=True, exist_ok=True)
         self.save_collection(directory / 'data.h5')
+        self.save_qrels(directory / 'qrels.tsv')
         for fold in range(len(self.folds)):
             fold_dir = directory / f'fold_{fold}'
             fold_dir.mkdir(parents=True, exist_ok=True)
@@ -519,13 +536,11 @@ class ParsableDataset(Dataset, abc.ABC):
             args (argparse.Namespace): Namespace that contains the arguments
         """
         self.directory = Path(args.DIRECTORY)
-
         queries = self.get_queries()
         docs = self.get_docs()
         qrels = self.get_qrels()
         pools = self.get_pools()
         super().__init__(queries, docs, qrels, pools)
-
         for f in self.get_folds():
             self.add_fold(*f)
 
