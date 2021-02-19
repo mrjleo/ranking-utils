@@ -495,7 +495,7 @@ class Dataset(object):
         Args:
             dest (Path): The file to create
         """
-        with open(dest, 'w') as fp:
+        with open(dest, 'w', encoding='utf-8', newline='') as fp:
             writer = csv.writer(fp, delimiter='\t')
             for q_id in self.qrels:
                 for doc_id, rel in self.qrels[q_id].items():

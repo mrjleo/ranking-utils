@@ -69,7 +69,7 @@ class TREC(ParsableDataset):
             Dict[str, str]: Query IDs mapped to queries
         """
         queries = {}
-        with open(self.directory / 'queries.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'queries.tsv', encoding='utf-8', newline='') as fp:
             for q_id, query, _, _ in csv.reader(fp, delimiter='\t'):
                 queries[q_id] = query
         return queries
@@ -81,7 +81,7 @@ class TREC(ParsableDataset):
             Dict[str, str]: Document IDs mapped to documents
         """
         docs = {}
-        with open(self.directory / 'documents.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'documents.tsv', encoding='utf-8', newline='') as fp:
             for doc_id, doc in csv.reader(fp, delimiter='\t'):
                 docs[doc_id] = doc
         return docs

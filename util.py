@@ -32,7 +32,7 @@ def write_trec_eval_file(out_file: Path, predictions: Dict[str, Dict[str, float]
         name (str): Method name
     """
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_file, 'w', encoding='utf-8', newline='\n') as fp:
+    with open(out_file, 'w', encoding='utf-8', newline='') as fp:
         writer = csv.writer(fp, delimiter='\t')
         for q_id in predictions:
             ranking = sorted(predictions[q_id].keys(), key=predictions[q_id].get, reverse=True)

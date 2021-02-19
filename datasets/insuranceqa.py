@@ -24,7 +24,7 @@ class InsuranceQA(ParsableDataset):
         """Read the dataset."""
         vocab_file = self.directory / 'vocabulary'
         vocab = {}
-        with open(vocab_file, encoding='utf-8') as fp:
+        with open(vocab_file, encoding='utf-8', newline='') as fp:
             for idx, word in csv.reader(fp, delimiter='\t', quotechar=None):
                 vocab[idx] = word
 

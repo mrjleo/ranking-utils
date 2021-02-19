@@ -35,7 +35,7 @@ class TRECDL2019Passage(ParsableDataset):
                                   ('msmarco-test2019-queries.tsv', 200)]:
             f = self.directory / f_name
             print(f'reading {f}...')
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding='utf-8', newline='') as fp:
                 reader = csv.reader(fp, delimiter='\t')
                 for q_id, query in tqdm(reader, total=num_lines):
                     self.queries[q_id] = query
@@ -44,7 +44,7 @@ class TRECDL2019Passage(ParsableDataset):
         self.docs = {}
         f = self.directory / 'collection.tsv'
         print(f'reading {f}...')
-        with open(f, encoding='utf-8') as fp:
+        with open(f, encoding='utf-8', newline='') as fp:
             reader = csv.reader(fp, delimiter='\t')
             for doc_id, doc in tqdm(reader, total=8841823):
                 self.docs[doc_id] = doc
@@ -55,7 +55,7 @@ class TRECDL2019Passage(ParsableDataset):
         for f_name, num_lines in [('qrels.train.tsv', 532761), ('qrels.dev.tsv', 59273)]:
             f = self.directory / f_name
             print(f'reading {f}...')
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding='utf-8', newline='') as fp:
                 reader = csv.reader(fp, delimiter='\t')
                 for q_id, _, doc_id, rel in tqdm(reader, total=num_lines):
                     self.qrels[q_id][doc_id] = int(rel)
@@ -64,7 +64,7 @@ class TRECDL2019Passage(ParsableDataset):
         # TREC qrels have a different format
         f = self.directory / '2019qrels-pass.txt'
         print(f'reading {f}...')
-        with open(f, encoding='utf-8') as fp:
+        with open(f, encoding='utf-8', newline='') as fp:
             for q_id, _, doc_id, rel in csv.reader(fp, delimiter=' '):
                 # 1 is considered irrelevant
                 self.qrels[q_id][doc_id] = int(rel) - 1
@@ -77,7 +77,7 @@ class TRECDL2019Passage(ParsableDataset):
                                   ('msmarco-passagetest2019-top1000.tsv', 189877)]:
             f = self.directory / f_name
             print(f'reading {f}...')
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding='utf-8', newline='') as fp:
                 reader = csv.reader(fp, delimiter='\t')
                 for q_id, doc_id, _, _ in tqdm(reader, total=num_lines):
                     self.pools[q_id].add(doc_id)
@@ -144,7 +144,7 @@ class TRECDL2019Document(ParsableDataset):
         """Read the queries and split."""
         def _read_queries(fname):
             result = {}
-            with open(fname, encoding='utf-8') as fp:
+            with open(fname, encoding='utf-8', newline='') as fp:
                 for q_id, query in csv.reader(fp, delimiter='\t'):
                     result[q_id] = query
             return result
@@ -176,7 +176,7 @@ class TRECDL2019Document(ParsableDataset):
             Dict[str, str]: Document IDs mapped to documents
         """
         docs = {}
-        with open(self.directory / 'msmarco-docs.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'msmarco-docs.tsv', encoding='utf-8', newline='') as fp:
             for doc_id, _, title, body in tqdm(csv.reader(fp, delimiter='\t'), total=3213835):
                 doc = title + '. ' + body
                 docs[doc_id] = doc

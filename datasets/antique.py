@@ -19,7 +19,7 @@ class ANTIQUE(ParsableDataset):
         queries = {}
         for f_name in ['antique-train-queries.txt', 'antique-test-queries.txt']:
             f = self.directory / f_name
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding='utf-8', newline='') as fp:
                 queries.update({q_id: query for q_id, query in csv.reader(fp, delimiter='\t')})
         return queries
 
@@ -30,7 +30,7 @@ class ANTIQUE(ParsableDataset):
             Dict[str, str]: Document IDs mapped to documents
         """
         doc_file = self.directory / 'antique-collection.txt'
-        with open(doc_file, encoding='utf-8') as fp:
+        with open(doc_file, encoding='utf-8', newline='') as fp:
             return {doc_id: doc for doc_id, doc in csv.reader(fp, delimiter='\t', quotechar=None)}
 
     def get_qrels(self) -> Dict[str, Dict[str, int]]:

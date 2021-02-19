@@ -17,7 +17,7 @@ class FiQA(ParsableDataset):
             Dict[str, str]: Query IDs mapped to queries
         """
         queries = {}
-        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8', newline='') as fp:
             # skip header
             next(fp)
             for _, q_id, question, _ in csv.reader(fp, delimiter='\t'):
@@ -31,7 +31,7 @@ class FiQA(ParsableDataset):
             Dict[str, str]: Document IDs mapped to documents
         """
         docs = {}
-        with open(self.directory / 'FiQA_train_doc_final.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_doc_final.tsv', encoding='utf-8', newline='') as fp:
             # skip header
             next(fp)
             for _, doc_id, doc, _ in csv.reader(fp, delimiter='\t'):
@@ -45,7 +45,7 @@ class FiQA(ParsableDataset):
             Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
         """
         qrels = defaultdict(dict)
-        with open(self.directory / 'FiQA_train_question_doc_final.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_question_doc_final.tsv', encoding='utf-8', newline='') as fp:
             # skip header
             next(fp)
             for _, q_id, doc_id in csv.reader(fp, delimiter='\t'):
@@ -74,7 +74,7 @@ class FiQA(ParsableDataset):
             _, val_ids, test_ids = pickle.load(fp)
 
         train_ids = set()
-        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8') as fp:
+        with open(self.directory / 'FiQA_train_question_final.tsv', encoding='utf-8', newline='') as fp:
             # skip header
             next(fp)
             for _, q_id, _, _ in csv.reader(fp, delimiter='\t'):
