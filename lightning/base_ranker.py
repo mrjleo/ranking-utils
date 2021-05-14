@@ -36,7 +36,6 @@ class BaseRanker(LightningModule, abc.ABC):
         test_ds (Optional[ValTestDatasetBase]): The testing dataset
         loss_margin (float, optional): Margin used in pairwise loss
         batch_size (int): The batch size
-        rr_k (int, optional): Compute RR@K. Defaults to 10.
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
         uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
     """
@@ -44,7 +43,7 @@ class BaseRanker(LightningModule, abc.ABC):
                  train_ds: Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase],
                  val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
                  loss_margin: Optional[float],
-                 batch_size: int, rr_k: int = 10,
+                 batch_size: int,
                  num_workers: int = 16, uses_ddp: bool = False):
         super().__init__()
         self.save_hyperparameters(hparams)
@@ -54,7 +53,6 @@ class BaseRanker(LightningModule, abc.ABC):
         self.test_ds = test_ds
         self.loss_margin = loss_margin
         self.batch_size = batch_size
-        self.rr_k = rr_k
         self.num_workers = num_workers
         self.uses_ddp = uses_ddp
         if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
@@ -191,6 +189,6 @@ class BaseRanker(LightningModule, abc.ABC):
             predictions = torch.stack(predictions)
             labels = torch.stack(labels)
             aps.append(average_precision(predictions, labels))
-            rrs.append(reciprocal_rank(predictions, labels, self.rr_k))
+            rrs.append(reciprocal_rank(predictions, labels))
         self.log('val_map', torch.mean(torch.stack(aps)), sync_dist=self.uses_ddp, sync_dist_op='mean')
         self.log('val_mrr', torch.mean(torch.stack(rrs)), sync_dist=self.uses_ddp, sync_dist_op='mean')
