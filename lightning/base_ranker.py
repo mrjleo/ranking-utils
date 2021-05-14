@@ -177,7 +177,7 @@ class BaseRanker(LightningModule, abc.ABC):
         self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
-        """Accumulate all validation batches and compute MAP and MRR@k. The results are approximate in DDP mode.
+        """Accumulate all validation batches and compute MAP and MRR. The results are approximate in DDP mode.
 
         Args:
             val_results (Iterable[Dict[str, torch.Tensor]]): Query IDs, predictions and labels

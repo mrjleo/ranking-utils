@@ -501,7 +501,7 @@ class Dataset(object):
                 for doc_id, rel in self.qrels[q_id].items():
                     orig_q_id = self.orig_q_ids[q_id]
                     orig_doc_id = self.orig_doc_ids[doc_id]
-                    writer.writerow([orig_q_id, 0, orig_doc_id, str(rel)])
+                    writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
     def save(self, directory: Path,
              num_negatives: Optional[int] = None,
