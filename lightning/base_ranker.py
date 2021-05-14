@@ -47,7 +47,6 @@ class BaseRanker(LightningModule, abc.ABC):
                  batch_size: int, rr_k: int = 10,
                  num_workers: int = 16, uses_ddp: bool = False):
         super().__init__()
-        self.hparams = hparams
         self.save_hyperparameters(hparams)
 
         self.train_ds = train_ds
