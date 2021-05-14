@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from collections import defaultdict
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
@@ -168,7 +169,11 @@ class BaseRanker(LightningModule, abc.ABC):
             'prediction': self(inputs),
             'label': labels
         }
-        save_dir = Path(self.logger.save_dir)
+        if self.logger.experiment.log_dir is not None:
+            save_dir = Path(self.logger.experiment.log_dir)
+        else:
+            # fallback to current working directory
+            save_dir = Path(os.getcwd())
         self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
