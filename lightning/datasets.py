@@ -57,8 +57,8 @@ class PointwiseTrainDatasetBase(Dataset, abc.ABC):
             label = fp['labels'][index]
 
         with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'][q_id]
-            doc = fp['docs'][doc_id]
+            query = fp['queries'].asstr()[q_id]
+            doc = fp['docs'].asstr()[doc_id]
 
         return self.get_single_input(query, doc), label
 
@@ -115,9 +115,9 @@ class PairwiseTrainDatasetBase(Dataset, abc.ABC):
             neg_doc_id = fp['neg_doc_ids'][index]
 
         with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'][q_id]
-            pos_doc = fp['docs'][pos_doc_id]
-            neg_doc = fp['docs'][neg_doc_id]
+            query = fp['queries'].asstr()[q_id]
+            pos_doc = fp['docs'].asstr()[pos_doc_id]
+            neg_doc = fp['docs'].asstr()[neg_doc_id]
 
         return self.get_single_input(query, pos_doc), self.get_single_input(query, neg_doc)
 
@@ -202,8 +202,8 @@ class ValTestDatasetBase(Dataset, abc.ABC):
             label = fp['labels'][index]
 
         with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'][q_id]
-            doc = fp['docs'][doc_id]
+            query = fp['queries'].asstr()[q_id]
+            doc = fp['docs'].asstr()[doc_id]
 
         # return the internal query and document IDs here
         return q_id, doc_id, self.get_single_input(query, doc), label
