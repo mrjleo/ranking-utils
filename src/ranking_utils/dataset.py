@@ -504,15 +504,15 @@ class Dataset(object):
                     writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
     def save(self, directory: Path,
-             num_negatives: Optional[int] = None,
-             pw_num_negatives: Optional[int] = None, pw_query_limit: Optional[int] = None):
+             num_neg_point: Optional[int] = None,
+             num_neg_pair: Optional[int] = None, query_limit_pair: Optional[int] = None):
         """Save the collection, QRels and all folds of trainingsets, validationset and testset.
 
         Args:
             directory (Path): Where to save the files
-            num_negatives (Optional[int], optional): Number of negatives per positive (pointwise training). Defaults to None.
-            pw_num_negatives (Optional[int], optional): Number of negatives per positive (pairwise training). Defaults to None.
-            pw_query_limit (Optional[int], optional): Maximum number of training examples per query (pairwise training). Defaults to None.
+            num_neg_point (Optional[int], optional): Number of negatives per positive (pointwise training). Defaults to None.
+            num_neg_pair (Optional[int], optional): Number of negatives per positive (pairwise training). Defaults to None.
+            query_limit_pair (Optional[int], optional): Maximum number of training examples per query (pairwise training). Defaults to None.
         """
         directory.mkdir(parents=True, exist_ok=True)
         self.save_collection(directory / 'data.h5')
@@ -520,10 +520,10 @@ class Dataset(object):
         for fold in range(len(self.folds)):
             fold_dir = directory / f'fold_{fold}'
             fold_dir.mkdir(parents=True, exist_ok=True)
-            if num_negatives is not None:
-                self.get_pointwise_trainingset(fold, num_negatives).save(fold_dir / 'train_pointwise.h5')
-            if pw_num_negatives is not None and pw_query_limit is not None:
-                self.get_pairwise_trainingset(fold, pw_num_negatives, pw_query_limit).save(fold_dir / 'train_pairwise.h5')
+            if num_neg_point is not None:
+                self.get_pointwise_trainingset(fold, num_neg_point).save(fold_dir / 'train_pointwise.h5')
+            if num_neg_pair is not None and query_limit_pair is not None:
+                self.get_pairwise_trainingset(fold, num_neg_pair, query_limit_pair).save(fold_dir / 'train_pairwise.h5')
             self.get_valset(fold).save(fold_dir / 'val.h5')
             self.get_testset(fold).save(fold_dir / 'test.h5')
 
