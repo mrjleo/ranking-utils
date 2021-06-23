@@ -24,6 +24,7 @@ def main():
     ap.add_argument('--random_seed', type=int, default=123, help='Random seed')
     args = ap.parse_args()
 
+    nltk.download('punkt')
     seed_everything(args.random_seed)
 
     print(f'reading {args.DATA_FILE}...')
