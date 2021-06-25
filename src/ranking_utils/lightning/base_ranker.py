@@ -128,12 +128,15 @@ class BaseRanker(LightningModule, abc.ABC):
         self.log('train_loss', loss)
         return loss
 
-    def validation_step(self, batch: ValTestBatch, batch_idx: int):
+    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Process a single validation batch.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
+
+        Returns:
+            Dict[str, torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
         predictions = self(inputs).flatten()
@@ -143,7 +146,7 @@ class BaseRanker(LightningModule, abc.ABC):
         """Update the validation metrics.
 
         Args:
-            step_results (Dict[str, torch.Tensor]): Results from a single validation step.
+            step_results (Dict[str, torch.Tensor]): Results from a single validation step
         """
         self.val_metrics(step_results['predictions'], step_results['labels'], indexes=step_results['q_ids'])
 
