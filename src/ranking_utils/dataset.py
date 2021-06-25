@@ -322,22 +322,12 @@ class Testset(object):
             ds = {
                 'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
                 'doc_ids': fp.create_dataset('doc_ids', (num_items,), dtype='int32'),
-                'labels': fp.create_dataset('labels', (num_items,), dtype='int32'),
-                'offsets': fp.create_dataset('offsets', (len(self.test_ids),), dtype='int32')
+                'labels': fp.create_dataset('labels', (num_items,), dtype='int32')
             }
-            last_q_id = None
-            i_offsets = 0
             for i, (q_id, doc_id, label) in enumerate(tqdm(self, desc='Saving testset')):
                 ds['q_ids'][i] = q_id
                 ds['doc_ids'][i] = doc_id
                 ds['labels'][i] = label
-
-                # offsets are only used for validation in DDP mode
-                if q_id != last_q_id:
-                    ds['offsets'][i_offsets] = i
-                    last_q_id = q_id
-                    i_offsets += 1
-            assert i_offsets == len(self.test_ids)
 
 
 class Dataset(object):

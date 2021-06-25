@@ -1,24 +1,21 @@
 import os
 from pathlib import Path
-from collections import defaultdict
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import abc
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 from pytorch_lightning import LightningModule
+from torchmetrics import MetricCollection, RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG
 
-from ranking_utils.metrics import average_precision, reciprocal_rank
-from ranking_utils.lightning.sampler import DistributedQuerySampler
 from ranking_utils.lightning.datasets import PointwiseTrainDatasetBase, PairwiseTrainDatasetBase, ValTestDatasetBase
 
 
 # input batches vary for each model, hence we use Any here
 InputBatch = Any
-PointwiseTrainBatch = Tuple[InputBatch, torch.IntTensor]
+PointwiseTrainBatch = Tuple[InputBatch, torch.FloatTensor]
 PairwiseTrainBatch = Tuple[InputBatch, InputBatch]
-ValTestBatch = Tuple[torch.IntTensor, torch.IntTensor, InputBatch, torch.IntTensor]
+ValTestBatch = Tuple[torch.LongTensor, torch.LongTensor, InputBatch, torch.LongTensor]
 
 
 class BaseRanker(LightningModule, abc.ABC):
@@ -26,9 +23,6 @@ class BaseRanker(LightningModule, abc.ABC):
     This class needs to be extended and (at least) the following methods must be implemented:
         * forward
         * configure_optimizers
-
-    Since this class uses custom sampling in DDP mode, the `Trainer` object must be initialized using
-    `replace_sampler_ddp=False` and the argument `uses_ddp=True` must be set when DDP is active.
 
     Args:
         hparams (Dict[str, Any]): All model hyperparameters
@@ -38,14 +32,13 @@ class BaseRanker(LightningModule, abc.ABC):
         loss_margin (float, optional): Margin used in pairwise loss
         batch_size (int): The batch size
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
-        uses_ddp (bool, optional): Whether DDP is used. Defaults to False.
     """
     def __init__(self, hparams: Dict[str, Any],
                  train_ds: Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase],
                  val_ds: Optional[ValTestDatasetBase], test_ds: Optional[ValTestDatasetBase],
                  loss_margin: Optional[float],
                  batch_size: int,
-                 num_workers: int = 16, uses_ddp: bool = False):
+                 num_workers: int = 16):
         super().__init__()
         self.save_hyperparameters(hparams)
 
@@ -55,7 +48,6 @@ class BaseRanker(LightningModule, abc.ABC):
         self.loss_margin = loss_margin
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.uses_ddp = uses_ddp
         if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
             self.training_mode = 'pointwise'
             self.bce = torch.nn.BCEWithLogitsLoss()
@@ -64,58 +56,53 @@ class BaseRanker(LightningModule, abc.ABC):
         else:
             self.training_mode = None
 
+        self.val_metrics = MetricCollection([
+            RetrievalMAP(compute_on_step=False),
+            RetrievalMRR(compute_on_step=False),
+            RetrievalNormalizedDCG(compute_on_step=False)
+        ], prefix='val_')
+
+    @property
+    def val_metric_names(self) -> Sequence[str]:
+        """Return all validation metrics that are computed after each epoch.
+
+        Returns:
+            Sequence[str]: The metric names
+        """
+        return self.val_metrics.keys()
+
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
-        it is used. If the model is trained in DDP mode, the standard `DistributedSampler` is used.
+        it is used.
 
         Returns:
             DataLoader: The DataLoader
         """
-        if self.uses_ddp:
-            sampler = DistributedSampler(self.train_ds, shuffle=True)
-            shuffle = None
-        else:
-            sampler = None
-            shuffle = True
-
-        return DataLoader(self.train_ds, batch_size=self.batch_size, sampler=sampler, shuffle=shuffle,
+        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True,
                           num_workers=self.num_workers, collate_fn=getattr(self.train_ds, 'collate_fn', None))
 
     def val_dataloader(self) -> Optional[DataLoader]:
         """Return a validationset DataLoader if the validationset exists. If the validationset object has a function
-        named `collate_fn`, it is used. If the model is validated in DDP mode, `DistributedQuerySampler` is used
-        for ranking metrics to work on a query level.
+        named `collate_fn`, it is used.
 
         Returns:
             Optional[DataLoader]: The DataLoader, or None if there is no validation dataset
         """
         if self.val_ds is None:
             return None
-
-        if self.uses_ddp:
-            sampler = DistributedQuerySampler(self.val_ds)
-        else:
-            sampler = None
-
-        return DataLoader(self.val_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
+        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
 
     def test_dataloader(self) -> Optional[DataLoader]:
         """Return a testset DataLoader if the testset exists. If the testset object has a function
-        named `collate_fn`, it is used. If the model is tested in DDP mode, the standard `DistributedSampler` is used.
+        named `collate_fn`, it is used.
 
         Returns:
             Optional[DataLoader]: The DataLoader, or None if there is no testing dataset
         """
         if self.test_ds is None:
             return None
-
-        if self.uses_ddp:
-            sampler = DistributedSampler(self.test_ds, shuffle=False)
-        else:
-            sampler = None
-
-        return DataLoader(self.test_ds, batch_size=self.batch_size, sampler=sampler, shuffle=False,
+        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False,
                           num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
 
     def training_step(self, batch: Union[PointwiseTrainBatch, PairwiseTrainBatch], batch_idx: int) -> torch.Tensor:
@@ -141,22 +128,29 @@ class BaseRanker(LightningModule, abc.ABC):
         self.log('train_loss', loss)
         return loss
 
-    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
+    def validation_step(self, batch: ValTestBatch, batch_idx: int):
         """Process a single validation batch.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
             batch_idx (int): Batch index
-        
-        Returns:
-            Dict[str, torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
-        return {'q_ids': q_ids, 'predictions': self(inputs), 'labels': labels}
+        predictions = self(inputs).flatten()
+        return {'q_ids': q_ids, 'predictions': predictions, 'labels': labels}
+
+    def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
+        """Update the validation metrics.
+
+        Args:
+            step_results (Dict[str, torch.Tensor]): Results from a single validation step.
+        """
+        self.val_metrics(step_results['predictions'], step_results['labels'], indexes=step_results['q_ids'])
 
     def test_step(self, batch: ValTestBatch, batch_idx: int):
         """Process a single test batch. The resulting query IDs, predictions and labels are written to files.
-        In DDP mode one file for each device is created. The files are created in the `save_dir` of the logger.
+        In DDP mode one file for each device is created. The files are created in the experiment directory of the logger
+        or in `os.getcwd()` as a fallback.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
@@ -177,23 +171,11 @@ class BaseRanker(LightningModule, abc.ABC):
         self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
-        """Accumulate all validation batches and compute MAP and MRR. The results are approximate in DDP mode.
+        """Compute validation metrics. The results may be approximate.
 
         Args:
-            val_results (Iterable[Dict[str, torch.Tensor]]): Query IDs, predictions and labels
+            val_results (Iterable[Dict[str, torch.Tensor]]): Results of validation steps
         """
-        temp = defaultdict(lambda: ([], []))
-        for r in val_results:
-            for q_id, (prediction,), label in zip(r['q_ids'], r['predictions'], r['labels']):
-                # q_id is a tensor with one element, we convert it to an int to use it as dict key
-                q_id = int(q_id.cpu())
-                temp[q_id][0].append(prediction)
-                temp[q_id][1].append(label)
-        aps, rrs = [], []
-        for predictions, labels in temp.values():
-            predictions = torch.stack(predictions)
-            labels = torch.stack(labels)
-            aps.append(average_precision(predictions, labels))
-            rrs.append(reciprocal_rank(predictions, labels))
-        self.log('val_map', torch.mean(torch.stack(aps)), sync_dist=self.uses_ddp, sync_dist_op='mean')
-        self.log('val_mrr', torch.mean(torch.stack(rrs)), sync_dist=self.uses_ddp, sync_dist_op='mean')
+        for metric, value in self.val_metrics.compute().items():
+            self.log(metric, value, sync_dist=True)
+        self.val_metrics.reset()
