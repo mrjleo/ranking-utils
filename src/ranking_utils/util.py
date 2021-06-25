@@ -1,26 +1,6 @@
 import csv
+from typing import Dict
 from pathlib import Path
-from collections import defaultdict
-from typing import Dict, Iterable, Tuple
-
-import torch
-
-
-def read_output_files(files: Iterable[Path]) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, int]]]:
-    """Read output files created during testing.
-
-    Args:
-        files (Iterable[Path]): Output files, typically one per GPU
-
-    Returns:
-        Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, int]]]: Query IDs mapped to document IDs mapped to scores/labels
-    """
-    predictions, labels = defaultdict(dict), defaultdict(dict)
-    for f in files:
-        for d in torch.load(f):
-            predictions[d['q_id']][d['doc_id']] = d['prediction'][0]
-            labels[d['q_id']][d['doc_id']] = d['label']
-    return predictions, labels
 
 
 def write_trec_eval_file(out_file: Path, predictions: Dict[str, Dict[str, float]], name: str):
