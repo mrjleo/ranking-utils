@@ -159,7 +159,7 @@ class ValTestDatasetBase(Dataset, abc.ABC):
             str: Original query ID
         """
         with h5py.File(self.data_file, 'r') as fp:
-            return fp['orig_q_ids'][q_id]
+            return fp['orig_q_ids'].asstr()[q_id]
 
     def get_original_document_id(self, doc_id: int) -> str:
         """Return the original (string) document ID for a given internal ID.
@@ -171,7 +171,7 @@ class ValTestDatasetBase(Dataset, abc.ABC):
             str: Original document ID
         """
         with h5py.File(self.data_file, 'r') as fp:
-            return fp['orig_doc_ids'][doc_id]
+            return fp['orig_doc_ids'].asstr()[doc_id]
 
     @abc.abstractmethod
     def get_single_input(self, query: str, doc: str) -> Input:
