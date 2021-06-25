@@ -1,8 +1,6 @@
-import os
-from pathlib import Path
+import abc
 from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
-import abc
 import torch
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningModule
@@ -81,30 +79,6 @@ class BaseRanker(LightningModule, abc.ABC):
         return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True,
                           num_workers=self.num_workers, collate_fn=getattr(self.train_ds, 'collate_fn', None))
 
-    def val_dataloader(self) -> Optional[DataLoader]:
-        """Return a validationset DataLoader if the validationset exists. If the validationset object has a function
-        named `collate_fn`, it is used.
-
-        Returns:
-            Optional[DataLoader]: The DataLoader, or None if there is no validation dataset
-        """
-        if self.val_ds is None:
-            return None
-        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False,
-                          num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
-
-    def test_dataloader(self) -> Optional[DataLoader]:
-        """Return a testset DataLoader if the testset exists. If the testset object has a function
-        named `collate_fn`, it is used.
-
-        Returns:
-            Optional[DataLoader]: The DataLoader, or None if there is no testing dataset
-        """
-        if self.test_ds is None:
-            return None
-        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False,
-                          num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
-
     def training_step(self, batch: Union[PointwiseTrainBatch, PairwiseTrainBatch], batch_idx: int) -> torch.Tensor:
         """Train a single batch.
 
@@ -128,8 +102,20 @@ class BaseRanker(LightningModule, abc.ABC):
         self.log('train_loss', loss)
         return loss
 
+    def val_dataloader(self) -> Optional[DataLoader]:
+        """Return a validationset DataLoader if the validationset exists. If the validationset object has a function
+        named `collate_fn`, it is used.
+
+        Returns:
+            Optional[DataLoader]: The DataLoader, or None if there is no validation dataset
+        """
+        if self.val_ds is None:
+            return None
+        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False,
+                          num_workers=self.num_workers, collate_fn=getattr(self.val_ds, 'collate_fn', None))
+
     def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
-        """Process a single validation batch.
+        """Process a single validation batch. The returned query IDs are internal integer IDs.
 
         Args:
             batch (ValTestBatch): Query IDs, document IDs, inputs and labels
@@ -139,8 +125,7 @@ class BaseRanker(LightningModule, abc.ABC):
             Dict[str, torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
-        predictions = self(inputs).flatten()
-        return {'q_ids': q_ids, 'predictions': predictions, 'labels': labels}
+        return {'q_ids': q_ids, 'predictions': self(inputs).flatten(), 'labels': labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
         """Update the validation metrics.
@@ -149,29 +134,6 @@ class BaseRanker(LightningModule, abc.ABC):
             step_results (Dict[str, torch.Tensor]): Results from a single validation step
         """
         self.val_metrics(step_results['predictions'], step_results['labels'], indexes=step_results['q_ids'])
-
-    def test_step(self, batch: ValTestBatch, batch_idx: int):
-        """Process a single test batch. The resulting query IDs, predictions and labels are written to files.
-        In DDP mode one file for each device is created. The files are created in the experiment directory of the logger
-        or in `os.getcwd()` as a fallback.
-
-        Args:
-            batch (ValTestBatch): Query IDs, document IDs, inputs and labels
-            batch_idx (int): Batch index
-        """
-        q_ids, doc_ids, inputs, labels = batch
-        out_dict = {
-            'q_id': [self.test_ds.get_original_query_id(q_id.cpu()) for q_id in q_ids],
-            'doc_id': [self.test_ds.get_original_document_id(doc_id.cpu()) for doc_id in doc_ids],
-            'prediction': self(inputs),
-            'label': labels
-        }
-        if self.logger.experiment.log_dir is not None:
-            save_dir = Path(self.logger.experiment.log_dir)
-        else:
-            # fallback to current working directory
-            save_dir = Path(os.getcwd())
-        self.write_prediction_dict(out_dict, str(save_dir / 'test_outputs.pt'))
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
         """Compute validation metrics. The results may be approximate.
@@ -182,3 +144,33 @@ class BaseRanker(LightningModule, abc.ABC):
         for metric, value in self.val_metrics.compute().items():
             self.log(metric, value, sync_dist=True)
         self.val_metrics.reset()
+
+    def predict_dataloader(self) -> Optional[DataLoader]:
+        """Return a testset DataLoader if the testset exists. If the testset object has a function
+        named `collate_fn`, it is used.
+
+        Returns:
+            Optional[DataLoader]: The DataLoader, or None if there is no testing dataset
+        """
+        if self.test_ds is None:
+            return None
+        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False,
+                          num_workers=self.num_workers, collate_fn=getattr(self.test_ds, 'collate_fn', None))
+
+    def predict_step(self, batch: ValTestBatch, batch_idx: int, dataloader_idx: int) -> Dict[str, torch.Tensor]:
+        """Predict a single batch. The returned query and document IDs are internal integer IDs.
+
+        Args:
+            batch (ValTestBatch): Query IDs, document IDs, inputs and labels
+            batch_idx (int): Batch index
+            dataloader_idx (int): DataLoader index
+
+        Returns:
+            Dict[str, torch.Tensor]: Query IDs, document IDs and predictions
+        """
+        q_ids, doc_ids, inputs, _ = batch
+        return {
+            'q_ids': q_ids,
+            'doc_ids': doc_ids,
+            'predictions': self(inputs).flatten()
+        }
