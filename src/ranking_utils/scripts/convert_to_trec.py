@@ -4,8 +4,7 @@
 import argparse
 from pathlib import Path
 
-from ranking_utils.util import write_trec_eval_file
-from ranking_utils.lightning.util import read_predictions
+from ranking_utils.util import read_predictions, write_trec_eval_file
 
 
 def main():
