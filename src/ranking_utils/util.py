@@ -1,14 +1,13 @@
-import os
 import csv
 import pickle
 import tempfile
-from typing import Dict, Iterable, Tuple
 from pathlib import Path
 from collections import defaultdict
+from typing import Dict, Iterable, Tuple
 
 import h5py
-import tqdm
 import torch
+from tqdm import tqdm
 from pytorch_lightning import Trainer
 
 from ranking_utils.lightning.base_ranker import BaseRanker
