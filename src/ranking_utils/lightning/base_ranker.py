@@ -2,7 +2,7 @@ import abc
 from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning import LightningModule
 from torchmetrics import MetricCollection, RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG
 
@@ -40,8 +40,8 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         elif self.training_mode == 'pairwise':
             self.loss_margin = loss_margin
         else:
-            raise ValueError(f'Unknow training mode: {training_mode}'))
-        
+            raise ValueError(f'Unknow training mode: {training_mode}')
+
         self.val_metrics = MetricCollection([
             RetrievalMAP(compute_on_step=False),
             RetrievalMRR(compute_on_step=False),
@@ -117,7 +117,7 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         self.val_metrics.reset()
 
 
-     def predict_step(self, batch: ValTestBatch, batch_idx: int, dataloader_idx: int = 0) -> Dict[str, torch.Tensor]:
+    def predict_step(self, batch: ValTestBatch, batch_idx: int, dataloader_idx: int = 0) -> Dict[str, torch.Tensor]:
         """Predict a single batch. The returned query and document IDs are internal integer IDs.
 
         Args:
@@ -166,6 +166,10 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         super().__init__(training_mode=training_mode,
                          loss_margin=loss_margin)
 
+        self.hparams.update(hparams)
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        
         self.train_ds = train_ds
         self.val_ds = val_ds
         self.test_ds = test_ds
@@ -176,7 +180,7 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
                           shuffle=shuffle,
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
-                          collate_fn=getattr(self.train_ds, 'collate_fn', None))
+                          collate_fn=getattr(dataset, 'collate_fn', None))
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
