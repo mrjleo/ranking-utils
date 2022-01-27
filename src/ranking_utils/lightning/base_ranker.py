@@ -27,12 +27,14 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         loss_margin (float, optional): Margin used in pairwise loss
     """
     def __init__(self,
+                 hparams: Optional[Dict[str, Any]] = None,
                  training_mode: Optional[str] = None,
                  loss_margin: Optional[float] = None):
         super().__init__()
 
-        self.save_hyperparameters()
-
+        if(hparams is not None):
+            self.save_hyperparameters(hparams)
+            
         self.training_mode = training_mode
 
         if self.training_mode == 'pointwise':
@@ -163,16 +165,10 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         elif issubclass(train_ds.__class__, PairwiseTrainDatasetBase):
             training_mode = 'pairwise'
 
-        super().__init__(training_mode=training_mode,
+        super().__init__(hparams=hparams,
+                         training_mode=training_mode,
                          loss_margin=loss_margin)
 
-        # FIXME: I think what's supposed to happen here is to fold hparams into the previously
-        # extracted (by save_hyperparameters, in DataLessBaseRanker.__init__) hparams.
-        # This means, though, that values in hparams will override those extracted from
-        # the call stack. Is that what we want?
-        #
-        # FK 2022-01-26
-        self.hparams.update(hparams)
         # For compatibility with existing code. These also show up in hparams but may be
         # different from self.hparams['batch_size'] etc. See previous comment.
         self.batch_size = batch_size
