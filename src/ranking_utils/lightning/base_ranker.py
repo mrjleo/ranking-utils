@@ -42,7 +42,7 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         elif self.training_mode == 'pairwise':
             self.loss_margin = loss_margin
         else:
-            raise ValueError(f'Unknow training mode: {training_mode}')
+            raise ValueError(f'Unknown training mode: {training_mode}')
 
         self.val_metrics = MetricCollection([
             RetrievalMAP(compute_on_step=False),
