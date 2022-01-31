@@ -72,9 +72,9 @@ class TRECDL2019Passage(ParsableDataset):
 
         # read top documents
         self.pools = defaultdict(set)
-        for f_name, num_lines in [('top1000.train.txt', 478016942),
-                                  ('top1000.dev.tsv', 6668967),
-                                  ('msmarco-passagetest2019-top1000.tsv', 189877)]:
+        for f_name, num_lines in [('top1000.dev.tsv', 6668967),
+                                  ('msmarco-passagetest2019-top1000.tsv', 189877),
+                                  ('top1000.train.txt', 478016942)]:
             f = self.directory / f_name
             print(f'reading {f}...')
             with open(f, encoding='utf-8', newline='') as fp:
