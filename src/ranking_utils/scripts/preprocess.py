@@ -15,13 +15,28 @@ from ranking_utils.datasets.trec import TREC
 
 def main():
     ap = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    ap.add_argument('SAVE', help='Where to save the results')
-    ap.add_argument('--num_neg_point', type=int, default=1, help='Number of negatives per positive (pointwise training)')
-    ap.add_argument('--num_neg_pair', type=int, default=16, help='Number of negatives per positive (pairwise training)')
-    ap.add_argument('--query_limit_pair', type=int, default=64, help='Maximum number of training examples per query (pairwise training)')
-    ap.add_argument('--random_seed', type=int, default=123, help='Random seed')
+    ap.add_argument("SAVE", help="Where to save the results")
+    ap.add_argument(
+        "--num_neg_point",
+        type=int,
+        default=1,
+        help="Number of negatives per positive (pointwise training)",
+    )
+    ap.add_argument(
+        "--num_neg_pair",
+        type=int,
+        default=16,
+        help="Number of negatives per positive (pairwise training)",
+    )
+    ap.add_argument(
+        "--query_limit_pair",
+        type=int,
+        default=64,
+        help="Maximum number of training examples per query (pairwise training)",
+    )
+    ap.add_argument("--random_seed", type=int, default=123, help="Random seed")
 
-    subparsers = ap.add_subparsers(help='Choose a dataset', dest='dataset')
+    subparsers = ap.add_subparsers(help="Choose a dataset", dest="dataset")
     subparsers.required = True
     DATASETS = [ANTIQUE, FiQA, InsuranceQA, TRECDL2019Passage, TRECDL2019Document, TREC]
     for c in DATASETS:
@@ -41,5 +56,5 @@ def main():
     ds.save(save_path, args.num_neg_point, args.num_neg_pair, args.query_limit_pair)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

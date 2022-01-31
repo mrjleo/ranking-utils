@@ -4,9 +4,18 @@ from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 import torch
 from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning import LightningModule
-from torchmetrics import MetricCollection, RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG
+from torchmetrics import (
+    MetricCollection,
+    RetrievalMAP,
+    RetrievalMRR,
+    RetrievalNormalizedDCG,
+)
 
-from ranking_utils.lightning.datasets import PointwiseTrainDatasetBase, PairwiseTrainDatasetBase, ValTestDatasetBase
+from ranking_utils.lightning.datasets import (
+    PointwiseTrainDatasetBase,
+    PairwiseTrainDatasetBase,
+    ValTestDatasetBase,
+)
 
 
 # input batches vary for each model, hence we use Any here
@@ -14,6 +23,7 @@ InputBatch = Any
 PointwiseTrainBatch = Tuple[InputBatch, torch.FloatTensor]
 PairwiseTrainBatch = Tuple[InputBatch, InputBatch]
 ValTestBatch = Tuple[torch.LongTensor, torch.LongTensor, InputBatch, torch.LongTensor]
+
 
 class DatalessBaseRanker(LightningModule, abc.ABC):
     """Abstract base class for re-rankers. Implements average precision and reciprocal rank validation.
@@ -26,30 +36,34 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         training_mode (str): 'pointwise' or 'pairwise'
         loss_margin (float, optional): Margin used in pairwise loss
     """
-    def __init__(self,
-                 hparams: Optional[Dict[str, Any]] = None,
-                 training_mode: Optional[str] = None,
-                 loss_margin: Optional[float] = None):
+
+    def __init__(
+        self,
+        hparams: Optional[Dict[str, Any]] = None,
+        training_mode: Optional[str] = None,
+        loss_margin: Optional[float] = None,
+    ):
         super().__init__()
 
-        if(hparams is not None):
+        if hparams is not None:
             self.save_hyperparameters(hparams)
 
         self.training_mode = training_mode
-
-        if self.training_mode == 'pointwise':
+        if self.training_mode == "pointwise":
             self.bce = torch.nn.BCEWithLogitsLoss()
-        elif self.training_mode == 'pairwise':
+        elif self.training_mode == "pairwise":
             self.loss_margin = loss_margin
         elif self.training_mode is not None:
-            raise ValueError(f'Unknown training mode: {training_mode}')
+            raise ValueError(f"Unknown training mode: {training_mode}")
 
-        self.val_metrics = MetricCollection([
-            RetrievalMAP(compute_on_step=False),
-            RetrievalMRR(compute_on_step=False),
-            RetrievalNormalizedDCG(compute_on_step=False)
-        ], prefix='val_')
-
+        self.val_metrics = MetricCollection(
+            [
+                RetrievalMAP(compute_on_step=False),
+                RetrievalMRR(compute_on_step=False),
+                RetrievalNormalizedDCG(compute_on_step=False),
+            ],
+            prefix="val_",
+        )
 
     @property
     def val_metric_names(self) -> Sequence[str]:
@@ -60,8 +74,9 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         """
         return self.val_metrics.keys()
 
-
-    def training_step(self, batch: Union[PointwiseTrainBatch, PairwiseTrainBatch], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Union[PointwiseTrainBatch, PairwiseTrainBatch], batch_idx: int
+    ) -> torch.Tensor:
         """Train a single batch.
 
         Args:
@@ -71,21 +86,26 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         Returns:
             torch.Tensor: Training loss
         """
-        if self.training_mode == 'pointwise':
+        if self.training_mode == "pointwise":
             inputs, labels = batch
             loss = self.bce(self(inputs).flatten(), labels.flatten())
-        elif self.training_mode == 'pairwise':
+        elif self.training_mode == "pairwise":
             pos_inputs, neg_inputs = batch
             pos_outputs = torch.sigmoid(self(pos_inputs))
             neg_outputs = torch.sigmoid(self(neg_inputs))
-            loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
+            loss = torch.mean(
+                torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0)
+            )
         else:
-            raise RuntimeError('Unsupported training dataset (should subclass PointwiseTrainDatasetBase or PairwiseTrainDatasetBase)')
-        self.log('train_loss', loss)
+            raise RuntimeError(
+                "Unsupported training dataset (should subclass PointwiseTrainDatasetBase or PairwiseTrainDatasetBase)"
+            )
+        self.log("train_loss", loss)
         return loss
 
-
-    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
+    def validation_step(
+        self, batch: ValTestBatch, batch_idx: int
+    ) -> Dict[str, torch.Tensor]:
         """Process a single validation batch. The returned query IDs are internal integer IDs.
 
         Args:
@@ -96,8 +116,7 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
             Dict[str, torch.Tensor]: Query IDs, predictions and labels
         """
         q_ids, _, inputs, labels = batch
-        return {'q_ids': q_ids, 'predictions': self(inputs).flatten(), 'labels': labels}
-
+        return {"q_ids": q_ids, "predictions": self(inputs).flatten(), "labels": labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
         """Update the validation metrics.
@@ -105,8 +124,11 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         Args:
             step_results (Dict[str, torch.Tensor]): Results from a single validation step
         """
-        self.val_metrics(step_results['predictions'], step_results['labels'], indexes=step_results['q_ids'])
-
+        self.val_metrics(
+            step_results["predictions"],
+            step_results["labels"],
+            indexes=step_results["q_ids"],
+        )
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
         """Compute validation metrics. The results may be approximate.
@@ -118,8 +140,9 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
             self.log(metric, value, sync_dist=True)
         self.val_metrics.reset()
 
-
-    def predict_step(self, batch: ValTestBatch, batch_idx: int, dataloader_idx: int = 0) -> Dict[str, torch.Tensor]:
+    def predict_step(
+        self, batch: ValTestBatch, batch_idx: int, dataloader_idx: int = 0
+    ) -> Dict[str, torch.Tensor]:
         """Predict a single batch. The returned query and document IDs are internal integer IDs.
 
         Args:
@@ -132,9 +155,9 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
         """
         q_ids, doc_ids, inputs, _ = batch
         return {
-            'q_ids': q_ids,
-            'doc_ids': doc_ids,
-            'predictions': self(inputs).flatten()
+            "q_ids": q_ids,
+            "doc_ids": doc_ids,
+            "predictions": self(inputs).flatten(),
         }
 
 
@@ -153,24 +176,28 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         batch_size (int): The batch size
         num_workers (int, optional): Number of DataLoader workers. Defaults to 16.
     """
-    def __init__(self, hparams: Dict[str, Any],
-                 train_ds: Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase],
-                 val_ds: Optional[ValTestDatasetBase],
-                 test_ds: Optional[ValTestDatasetBase],
-                 loss_margin: Optional[float],
-                 batch_size: int,
-                 num_workers: int = 16):
+
+    def __init__(
+        self,
+        hparams: Dict[str, Any],
+        train_ds: Union[PointwiseTrainDatasetBase, PairwiseTrainDatasetBase],
+        val_ds: Optional[ValTestDatasetBase],
+        test_ds: Optional[ValTestDatasetBase],
+        loss_margin: Optional[float],
+        batch_size: int,
+        num_workers: int = 16,
+    ):
         if issubclass(train_ds.__class__, PointwiseTrainDatasetBase):
-            training_mode = 'pointwise'
+            training_mode = "pointwise"
         elif issubclass(train_ds.__class__, PairwiseTrainDatasetBase):
-            training_mode = 'pairwise'
+            training_mode = "pairwise"
         else:
             # e.g. re-ranking without training
             training_mode = None
 
-        super().__init__(hparams=hparams,
-                         training_mode=training_mode,
-                         loss_margin=loss_margin)
+        super().__init__(
+            hparams=hparams, training_mode=training_mode, loss_margin=loss_margin
+        )
 
         # For compatibility with existing code. These also show up in hparams but may be
         # different from self.hparams['batch_size'] etc. See previous comment.
@@ -181,13 +208,14 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         self.val_ds = val_ds
         self.test_ds = test_ds
 
-
     def _build_dataloader(self, dataset: Dataset, shuffle: bool) -> DataLoader:
-        return DataLoader(dataset,
-                          shuffle=shuffle,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          collate_fn=getattr(dataset, 'collate_fn', None))
+        return DataLoader(
+            dataset,
+            shuffle=shuffle,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            collate_fn=getattr(dataset, "collate_fn", None),
+        )
 
     def train_dataloader(self) -> DataLoader:
         """Return a trainset DataLoader. If the trainset object has a function named `collate_fn`,
@@ -197,7 +225,6 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
             DataLoader: The DataLoader
         """
         return self._build_dataloader(self.train_ds, True)
-
 
     def val_dataloader(self) -> Optional[DataLoader]:
         """Return a validationset DataLoader if the validationset exists. If the validationset object has a function
@@ -209,7 +236,6 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         if self.val_ds is None:
             return None
         return self._build_dataloader(self.val_ds, False)
-
 
     def predict_dataloader(self) -> Optional[DataLoader]:
         """Return a testset DataLoader if the testset exists. If the testset object has a function

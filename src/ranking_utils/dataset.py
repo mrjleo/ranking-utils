@@ -21,8 +21,14 @@ class PointwiseTrainingset(object):
         pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents
         num_negatives (int): Number of negatives per positive
     """
-    def __init__(self, train_ids: Set[int], qrels: Dict[int, Dict[int, int]], pools: Dict[int, Set[int]],
-                 num_negatives: int):
+
+    def __init__(
+        self,
+        train_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+        num_negatives: int,
+    ):
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -47,7 +53,11 @@ class PointwiseTrainingset(object):
         # sample negatives
         for q_id in self.train_ids:
             # all documents from the pool with no positive relevance
-            candidates = [doc_id for doc_id in self.pools.get(q_id, []) if self.qrels[q_id].get(doc_id, 0) <= 0]
+            candidates = [
+                doc_id
+                for doc_id in self.pools.get(q_id, [])
+                if self.qrels[q_id].get(doc_id, 0) <= 0
+            ]
             # in case there are not enough candidates
             num_neg = min(len(candidates), len(positives[q_id]) * self.num_negatives)
             if num_neg > 0:
@@ -82,16 +92,18 @@ class PointwiseTrainingset(object):
             dest (Path): File to create
         """
         num_items = len(self)
-        with h5py.File(dest, 'w') as fp:
+        with h5py.File(dest, "w") as fp:
             ds = {
-                'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
-                'doc_ids': fp.create_dataset('doc_ids', (num_items,), dtype='int32'),
-                'labels': fp.create_dataset('labels', (num_items,), dtype='int32')
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "doc_ids": fp.create_dataset("doc_ids", (num_items,), dtype="int32"),
+                "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
             }
-            for i, (q_id, doc_id, label) in enumerate(tqdm(self, desc='Saving pointwise trainset')):
-                ds['q_ids'][i] = q_id
-                ds['doc_ids'][i] = doc_id
-                ds['labels'][i] = label
+            for i, (q_id, doc_id, label) in enumerate(
+                tqdm(self, desc="Saving pointwise trainset")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["doc_ids"][i] = doc_id
+                ds["labels"][i] = label
 
 
 class PairwiseTrainingset(object):
@@ -105,8 +117,15 @@ class PairwiseTrainingset(object):
         num_negatives (int): Number of negatives per positive
         query_limit (int): Maximum number of training examples per query
     """
-    def __init__(self, train_ids: Set[int], qrels: Dict[int, Dict[int, int]], pools: Dict[int, Set[int]],
-                 num_negatives: int, query_limit: int):
+
+    def __init__(
+        self,
+        train_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+        num_negatives: int,
+        query_limit: int,
+    ):
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -206,7 +225,9 @@ class PairwiseTrainingset(object):
             for positive in docs[rel]:
                 sample_size = min(num_negatives, len(negative_candidates))
                 negatives = random.sample(negative_candidates, sample_size)
-                result.extend(zip([q_id] * sample_size, [positive] * sample_size, negatives))
+                result.extend(
+                    zip([q_id] * sample_size, [positive] * sample_size, negatives)
+                )
 
         for q_id, _, _ in result:
             assert q_id in self.train_ids
@@ -249,16 +270,22 @@ class PairwiseTrainingset(object):
             dest (Path): File to create
         """
         num_items = len(self)
-        with h5py.File(dest, 'w') as fp:
+        with h5py.File(dest, "w") as fp:
             ds = {
-                'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
-                'pos_doc_ids': fp.create_dataset('pos_doc_ids', (num_items,), dtype='int32'),
-                'neg_doc_ids': fp.create_dataset('neg_doc_ids', (num_items,), dtype='int32')
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "pos_doc_ids": fp.create_dataset(
+                    "pos_doc_ids", (num_items,), dtype="int32"
+                ),
+                "neg_doc_ids": fp.create_dataset(
+                    "neg_doc_ids", (num_items,), dtype="int32"
+                ),
             }
-            for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(tqdm(self, desc='Saving pairwise trainset')):
-                ds['q_ids'][i] = q_id
-                ds['pos_doc_ids'][i] = pos_doc_id
-                ds['neg_doc_ids'][i] = neg_doc_id
+            for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(
+                tqdm(self, desc="Saving pairwise trainset")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["pos_doc_ids"][i] = pos_doc_id
+                ds["neg_doc_ids"][i] = neg_doc_id
 
 
 class Testset(object):
@@ -272,7 +299,13 @@ class Testset(object):
     Yields:
         Tuple[int, int, int]: Query ID, document ID, label
     """
-    def __init__(self, test_ids: Set[int], qrels: Dict[int, Dict[int, int]], pools: Dict[int, Set[int]]):
+
+    def __init__(
+        self,
+        test_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+    ):
         self.test_ids = test_ids
         self.qrels = qrels
         self.pools = pools
@@ -287,8 +320,8 @@ class Testset(object):
         result = []
         for q_id in self.test_ids:
             for doc_id in self.pools[q_id]:
-                    label = 1 if self.qrels[q_id].get(doc_id, 0) > 0 else 0
-                    result.append((q_id, doc_id, label))
+                label = 1 if self.qrels[q_id].get(doc_id, 0) > 0 else 0
+                result.append((q_id, doc_id, label))
 
         for q_id, _, _ in result:
             assert q_id in self.test_ids
@@ -318,16 +351,18 @@ class Testset(object):
             dest (Path): File to create
         """
         num_items = len(self)
-        with h5py.File(dest, 'w') as fp:
+        with h5py.File(dest, "w") as fp:
             ds = {
-                'q_ids': fp.create_dataset('q_ids', (num_items,), dtype='int32'),
-                'doc_ids': fp.create_dataset('doc_ids', (num_items,), dtype='int32'),
-                'labels': fp.create_dataset('labels', (num_items,), dtype='int32')
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "doc_ids": fp.create_dataset("doc_ids", (num_items,), dtype="int32"),
+                "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
             }
-            for i, (q_id, doc_id, label) in enumerate(tqdm(self, desc='Saving testset')):
-                ds['q_ids'][i] = q_id
-                ds['doc_ids'][i] = doc_id
-                ds['labels'][i] = label
+            for i, (q_id, doc_id, label) in enumerate(
+                tqdm(self, desc="Saving testset")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["doc_ids"][i] = doc_id
+                ds["labels"][i] = label
 
 
 class Dataset(object):
@@ -347,10 +382,14 @@ class Dataset(object):
         qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance
         pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents
     """
-    def __init__(self,
-                 queries: Dict[str, str], docs: Dict[str, str],
-                 qrels: Dict[str, List[Tuple[str, int]]],
-                 pools: Dict[str, Set[str]]):
+
+    def __init__(
+        self,
+        queries: Dict[str, str],
+        docs: Dict[str, str],
+        qrels: Dict[str, List[Tuple[str, int]]],
+        pools: Dict[str, Set[str]],
+    ):
         self.folds = []
 
         # assign unique integer IDs to queries and docs, but keep mappings from and to the original IDs
@@ -381,7 +420,11 @@ class Dataset(object):
         self.pools = {}
         for orig_q_id, orig_doc_ids in pools.items():
             int_q_id = self.int_q_ids[orig_q_id]
-            int_doc_ids = {self.int_doc_ids[orig_doc_id] for orig_doc_id in orig_doc_ids if orig_doc_id in self.int_doc_ids}
+            int_doc_ids = {
+                self.int_doc_ids[orig_doc_id]
+                for orig_doc_id in orig_doc_ids
+                if orig_doc_id in self.int_doc_ids
+            }
             self.pools[int_q_id] = int_doc_ids
 
     def add_fold(self, train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]):
@@ -404,7 +447,9 @@ class Dataset(object):
 
         self.folds.append((train_ids, val_ids, test_ids))
 
-    def get_pointwise_trainingset(self, fold: int, num_negatives: int) -> PointwiseTrainingset:
+    def get_pointwise_trainingset(
+        self, fold: int, num_negatives: int
+    ) -> PointwiseTrainingset:
         """Pointwise trainingset iterator for a given fold.
 
         Args:
@@ -417,7 +462,9 @@ class Dataset(object):
         train_ids = self.folds[fold][0]
         return PointwiseTrainingset(train_ids, self.qrels, self.pools, num_negatives)
 
-    def get_pairwise_trainingset(self, fold: int, num_negatives: int, query_limit: int) -> PairwiseTrainingset:
+    def get_pairwise_trainingset(
+        self, fold: int, num_negatives: int, query_limit: int
+    ) -> PairwiseTrainingset:
         """Pairwise trainingset iterator for a given fold.
 
         Args:
@@ -429,7 +476,9 @@ class Dataset(object):
             PairwiseTrainingset: The trainingset
         """
         train_ids = self.folds[fold][0]
-        return PairwiseTrainingset(train_ids, self.qrels, self.pools, num_negatives, query_limit)
+        return PairwiseTrainingset(
+            train_ids, self.qrels, self.pools, num_negatives, query_limit
+        )
 
     def get_valset(self, fold: int) -> Testset:
         """Validationset iterator for a given fold.
@@ -462,21 +511,27 @@ class Dataset(object):
         Args:
             dest (Path): The file to create
         """
-        str_dt = h5py.string_dtype(encoding='utf-8')
-        with h5py.File(dest, 'w') as fp:
+        str_dt = h5py.string_dtype(encoding="utf-8")
+        with h5py.File(dest, "w") as fp:
             ds = {
-                'queries': fp.create_dataset('queries', (len(self.queries),), dtype=str_dt),
-                'orig_q_ids': fp.create_dataset('orig_q_ids', (len(self.orig_q_ids),), dtype=str_dt),
-                'docs': fp.create_dataset('docs', (len(self.docs),), dtype=str_dt),
-                'orig_doc_ids': fp.create_dataset('orig_doc_ids', (len(self.orig_doc_ids),), dtype=str_dt)
+                "queries": fp.create_dataset(
+                    "queries", (len(self.queries),), dtype=str_dt
+                ),
+                "orig_q_ids": fp.create_dataset(
+                    "orig_q_ids", (len(self.orig_q_ids),), dtype=str_dt
+                ),
+                "docs": fp.create_dataset("docs", (len(self.docs),), dtype=str_dt),
+                "orig_doc_ids": fp.create_dataset(
+                    "orig_doc_ids", (len(self.orig_doc_ids),), dtype=str_dt
+                ),
             }
-            for q_id, query in tqdm(self.queries.items(), desc='Saving queries'):
-                ds['queries'][q_id] = query
-                ds['orig_q_ids'][q_id] = self.orig_q_ids[q_id]
+            for q_id, query in tqdm(self.queries.items(), desc="Saving queries"):
+                ds["queries"][q_id] = query
+                ds["orig_q_ids"][q_id] = self.orig_q_ids[q_id]
 
-            for doc_id, doc in tqdm(self.docs.items(), desc='Saving documents'):
-                ds['docs'][doc_id] = doc
-                ds['orig_doc_ids'][doc_id] = self.orig_doc_ids[doc_id]
+            for doc_id, doc in tqdm(self.docs.items(), desc="Saving documents"):
+                ds["docs"][doc_id] = doc
+                ds["orig_doc_ids"][doc_id] = self.orig_doc_ids[doc_id]
 
     def save_qrels(self, dest: Path):
         """Save the QRels as a tab-separated file to be used with TREC-eval.
@@ -485,17 +540,21 @@ class Dataset(object):
         Args:
             dest (Path): The file to create
         """
-        with open(dest, 'w', encoding='utf-8', newline='') as fp:
-            writer = csv.writer(fp, delimiter='\t')
+        with open(dest, "w", encoding="utf-8", newline="") as fp:
+            writer = csv.writer(fp, delimiter="\t")
             for q_id in self.qrels:
                 for doc_id, rel in self.qrels[q_id].items():
                     orig_q_id = self.orig_q_ids[q_id]
                     orig_doc_id = self.orig_doc_ids[doc_id]
                     writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
-    def save(self, directory: Path,
-             num_neg_point: Optional[int] = None,
-             num_neg_pair: Optional[int] = None, query_limit_pair: Optional[int] = None):
+    def save(
+        self,
+        directory: Path,
+        num_neg_point: Optional[int] = None,
+        num_neg_pair: Optional[int] = None,
+        query_limit_pair: Optional[int] = None,
+    ):
         """Save the collection, QRels and all folds of trainingsets, validationset and testset.
 
         Args:
@@ -505,17 +564,21 @@ class Dataset(object):
             query_limit_pair (Optional[int], optional): Maximum number of training examples per query (pairwise training). Defaults to None.
         """
         directory.mkdir(parents=True, exist_ok=True)
-        self.save_collection(directory / 'data.h5')
-        self.save_qrels(directory / 'qrels.tsv')
+        self.save_collection(directory / "data.h5")
+        self.save_qrels(directory / "qrels.tsv")
         for fold in range(len(self.folds)):
-            fold_dir = directory / f'fold_{fold}'
+            fold_dir = directory / f"fold_{fold}"
             fold_dir.mkdir(parents=True, exist_ok=True)
             if num_neg_point is not None:
-                self.get_pointwise_trainingset(fold, num_neg_point).save(fold_dir / 'train_pointwise.h5')
+                self.get_pointwise_trainingset(fold, num_neg_point).save(
+                    fold_dir / "train_pointwise.h5"
+                )
             if num_neg_pair is not None and query_limit_pair is not None:
-                self.get_pairwise_trainingset(fold, num_neg_pair, query_limit_pair).save(fold_dir / 'train_pairwise.h5')
-            self.get_valset(fold).save(fold_dir / 'val.h5')
-            self.get_testset(fold).save(fold_dir / 'test.h5')
+                self.get_pairwise_trainingset(
+                    fold, num_neg_pair, query_limit_pair
+                ).save(fold_dir / "train_pairwise.h5")
+            self.get_valset(fold).save(fold_dir / "val.h5")
+            self.get_testset(fold).save(fold_dir / "test.h5")
 
 
 class ParsableDataset(Dataset, abc.ABC):
@@ -588,4 +651,5 @@ class ParsableDataset(Dataset, abc.ABC):
             name (str): Parser name
         """
         sp = subparsers.add_parser(name)
-        sp.add_argument('DIRECTORY', help='Dataset directory containing all files')
+        sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
+

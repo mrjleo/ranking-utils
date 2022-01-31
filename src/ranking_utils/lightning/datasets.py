@@ -22,12 +22,13 @@ class PointwiseTrainDatasetBase(Dataset, abc.ABC):
         data_file (Path): Data file containing queries and documents
         train_file (Path): Trainingset file
     """
+
     def __init__(self, data_file: Path, train_file: Path):
         self.data_file = data_file
         self.train_file = train_file
 
-        with h5py.File(train_file, 'r') as fp:
-            self.length = len(fp['q_ids'])
+        with h5py.File(train_file, "r") as fp:
+            self.length = len(fp["q_ids"])
 
     @abc.abstractmethod
     def get_single_input(self, query: str, doc: str) -> Input:
@@ -51,14 +52,14 @@ class PointwiseTrainDatasetBase(Dataset, abc.ABC):
         Returns:
             PointwiseTrainingInput: Inputs and label for pointwise training
         """
-        with h5py.File(self.train_file, 'r') as fp:
-            q_id = fp['q_ids'][index]
-            doc_id = fp['doc_ids'][index]
-            label = fp['labels'][index]
+        with h5py.File(self.train_file, "r") as fp:
+            q_id = fp["q_ids"][index]
+            doc_id = fp["doc_ids"][index]
+            label = fp["labels"][index]
 
-        with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'].asstr()[q_id]
-            doc = fp['docs'].asstr()[doc_id]
+        with h5py.File(self.data_file, "r") as fp:
+            query = fp["queries"].asstr()[q_id]
+            doc = fp["docs"].asstr()[doc_id]
 
         return self.get_single_input(query, doc), label
 
@@ -80,12 +81,13 @@ class PairwiseTrainDatasetBase(Dataset, abc.ABC):
         data_file (Path): Data file containing queries and documents
         train_file (Path): Trainingset file
     """
+
     def __init__(self, data_file: Path, train_file: Path):
         self.data_file = data_file
         self.train_file = train_file
 
-        with h5py.File(train_file, 'r') as fp:
-            self.length = len(fp['q_ids'])
+        with h5py.File(train_file, "r") as fp:
+            self.length = len(fp["q_ids"])
 
     @abc.abstractmethod
     def get_single_input(self, query: str, doc: str) -> Input:
@@ -109,17 +111,20 @@ class PairwiseTrainDatasetBase(Dataset, abc.ABC):
         Returns:
             PairwiseTrainingInput: Positive and negative inputs for pairwise training
         """
-        with h5py.File(self.train_file, 'r') as fp:
-            q_id = fp['q_ids'][index]
-            pos_doc_id = fp['pos_doc_ids'][index]
-            neg_doc_id = fp['neg_doc_ids'][index]
+        with h5py.File(self.train_file, "r") as fp:
+            q_id = fp["q_ids"][index]
+            pos_doc_id = fp["pos_doc_ids"][index]
+            neg_doc_id = fp["neg_doc_ids"][index]
 
-        with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'].asstr()[q_id]
-            pos_doc = fp['docs'].asstr()[pos_doc_id]
-            neg_doc = fp['docs'].asstr()[neg_doc_id]
+        with h5py.File(self.data_file, "r") as fp:
+            query = fp["queries"].asstr()[q_id]
+            pos_doc = fp["docs"].asstr()[pos_doc_id]
+            neg_doc = fp["docs"].asstr()[neg_doc_id]
 
-        return self.get_single_input(query, pos_doc), self.get_single_input(query, neg_doc)
+        return (
+            self.get_single_input(query, pos_doc),
+            self.get_single_input(query, neg_doc),
+        )
 
     def __len__(self) -> int:
         """Number of training instances.
@@ -142,12 +147,13 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         data_file (Path): Data file containing queries and documents
         val_test_file (Path): Validation-/testset file
     """
+
     def __init__(self, data_file: Path, val_test_file: Path):
         self.data_file = data_file
         self.val_test_file = val_test_file
 
-        with h5py.File(val_test_file, 'r') as fp:
-            self.length = len(fp['q_ids'])
+        with h5py.File(val_test_file, "r") as fp:
+            self.length = len(fp["q_ids"])
 
     def get_original_query_id(self, q_id: int) -> str:
         """Return the original (string) query ID for a given internal ID.
@@ -158,8 +164,8 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         Returns:
             str: Original query ID
         """
-        with h5py.File(self.data_file, 'r') as fp:
-            return fp['orig_q_ids'].asstr()[q_id]
+        with h5py.File(self.data_file, "r") as fp:
+            return fp["orig_q_ids"].asstr()[q_id]
 
     def get_original_document_id(self, doc_id: int) -> str:
         """Return the original (string) document ID for a given internal ID.
@@ -170,8 +176,8 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         Returns:
             str: Original document ID
         """
-        with h5py.File(self.data_file, 'r') as fp:
-            return fp['orig_doc_ids'].asstr()[doc_id]
+        with h5py.File(self.data_file, "r") as fp:
+            return fp["orig_doc_ids"].asstr()[doc_id]
 
     @abc.abstractmethod
     def get_single_input(self, query: str, doc: str) -> Input:
@@ -195,14 +201,14 @@ class ValTestDatasetBase(Dataset, abc.ABC):
         Returns:
             ValTestInput: Query ID, input and label
         """
-        with h5py.File(self.val_test_file, 'r') as fp:
-            q_id = fp['q_ids'][index]
-            doc_id = fp['doc_ids'][index]
-            label = fp['labels'][index]
+        with h5py.File(self.val_test_file, "r") as fp:
+            q_id = fp["q_ids"][index]
+            doc_id = fp["doc_ids"][index]
+            label = fp["labels"][index]
 
-        with h5py.File(self.data_file, 'r') as fp:
-            query = fp['queries'].asstr()[q_id]
-            doc = fp['docs'].asstr()[doc_id]
+        with h5py.File(self.data_file, "r") as fp:
+            query = fp["queries"].asstr()[q_id]
+            doc = fp["docs"].asstr()[doc_id]
 
         # return the internal query and document IDs here
         return q_id, doc_id, self.get_single_input(query, doc), label
