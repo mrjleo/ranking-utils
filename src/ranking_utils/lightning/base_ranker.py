@@ -34,14 +34,14 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
 
         if(hparams is not None):
             self.save_hyperparameters(hparams)
-            
+
         self.training_mode = training_mode
 
         if self.training_mode == 'pointwise':
             self.bce = torch.nn.BCEWithLogitsLoss()
         elif self.training_mode == 'pairwise':
             self.loss_margin = loss_margin
-        else:
+        elif self.training_mode is not None:
             raise ValueError(f'Unknown training mode: {training_mode}')
 
         self.val_metrics = MetricCollection([
@@ -49,7 +49,7 @@ class DatalessBaseRanker(LightningModule, abc.ABC):
             RetrievalMRR(compute_on_step=False),
             RetrievalNormalizedDCG(compute_on_step=False)
         ], prefix='val_')
-        
+
 
     @property
     def val_metric_names(self) -> Sequence[str]:
@@ -164,6 +164,9 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
             training_mode = 'pointwise'
         elif issubclass(train_ds.__class__, PairwiseTrainDatasetBase):
             training_mode = 'pairwise'
+        else:
+            # e.g. re-ranking without training
+            training_mode = None
 
         super().__init__(hparams=hparams,
                          training_mode=training_mode,
@@ -173,7 +176,7 @@ class BaseRanker(DatalessBaseRanker, abc.ABC):
         # different from self.hparams['batch_size'] etc. See previous comment.
         self.batch_size = batch_size
         self.num_workers = num_workers
-        
+
         self.train_ds = train_ds
         self.val_ds = val_ds
         self.test_ds = test_ds
