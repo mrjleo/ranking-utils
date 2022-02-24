@@ -11,10 +11,10 @@ from torchmetrics import (
 )
 
 from ranking_utils.lightning.data import (
-    TrainingMode,
+    Mode,
     PointwiseTrainingBatch,
     PairwiseTrainingBatch,
-    ValidationBatch,
+    EvaluationBatch,
 )
 
 
@@ -27,7 +27,7 @@ class Ranker(LightningModule, abc.ABC):
 
     def __init__(
         self,
-        training_mode: TrainingMode = TrainingMode.POINTWISE,
+        training_mode: Mode = Mode.POINTWISE_TRAINING,
         loss_margin: float = 1.0,
         hparams: Dict[str, Any] = None,
     ):
@@ -36,12 +36,12 @@ class Ranker(LightningModule, abc.ABC):
         if hparams is not None:
             self.save_hyperparameters(hparams)
 
-        if training_mode == TrainingMode.POINTWISE:
+        if training_mode == Mode.POINTWISE_TRAINING:
             self.bce = torch.nn.BCEWithLogitsLoss()
-        elif training_mode == TrainingMode.PAIRWISE:
+        elif training_mode == Mode.PAIRWISE_TRAINING:
             self.loss_margin = loss_margin
         else:
-            raise ValueError(f"Unknown training mode: {training_mode}")
+            raise ValueError(f"Invalid training mode: {training_mode}")
 
         self.val_metrics = MetricCollection(
             [
@@ -75,10 +75,10 @@ class Ranker(LightningModule, abc.ABC):
         Returns:
             torch.Tensor: Training loss.
         """
-        if self.training_mode == TrainingMode.POINTWISE:
+        if self.training_mode == Mode.POINTWISE_TRAINING:
             inputs, labels = batch
             loss = self.bce(self(inputs).flatten(), labels.flatten())
-        elif self.training_mode == TrainingMode.PAIRWISE:
+        elif self.training_mode == Mode.PAIRWISE_TRAINING:
             pos_inputs, neg_inputs = batch
             pos_outputs = torch.sigmoid(self(pos_inputs))
             neg_outputs = torch.sigmoid(self(neg_inputs))
@@ -90,18 +90,18 @@ class Ranker(LightningModule, abc.ABC):
         return loss
 
     def validation_step(
-        self, batch: ValidationBatch, batch_idx: int
+        self, batch: EvaluationBatch, batch_idx: int
     ) -> Dict[str, torch.Tensor]:
         """Process a validation batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (ValidationBatch): Inputs, internal query IDs and labels.
+            batch (EvaluationBatch): Inputs, internal query IDs, internal document IDs and labels.
             batch_idx (int): Batch index.
 
         Returns:
             Dict[str, torch.Tensor]: Query IDs, predictions and labels.
         """
-        inputs, q_ids, labels = batch
+        inputs, q_ids, _, labels = batch
         return {"q_ids": q_ids, "predictions": self(inputs).flatten(), "labels": labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
