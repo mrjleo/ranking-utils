@@ -77,12 +77,12 @@ class Ranker(LightningModule, abc.ABC):
             torch.Tensor: Training loss.
         """
         if self.training_mode == Mode.POINTWISE_TRAINING:
-            inputs, labels = batch
-            loss = self.bce(self(inputs).flatten(), labels.flatten())
+            model_batch, labels = batch
+            loss = self.bce(self(model_batch).flatten(), labels.flatten())
         elif self.training_mode == Mode.PAIRWISE_TRAINING:
-            pos_inputs, neg_inputs = batch
-            pos_outputs = torch.sigmoid(self(pos_inputs))
-            neg_outputs = torch.sigmoid(self(neg_inputs))
+            pos_model_batch, neg_model_batch = batch
+            pos_outputs = torch.sigmoid(self(pos_model_batch))
+            neg_outputs = torch.sigmoid(self(neg_model_batch))
             loss = torch.mean(
                 torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0)
             )
@@ -96,14 +96,14 @@ class Ranker(LightningModule, abc.ABC):
         """Process a validation batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (ValidationBatch): Inputs, internal query IDs, internal document IDs and labels.
+            batch (ValidationBatch): A validation batch.
             batch_idx (int): Batch index.
 
         Returns:
             Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
-        inputs, q_ids, labels = batch
-        return {"q_ids": q_ids, "scores": self(inputs).flatten(), "labels": labels}
+        model_batch, q_ids, labels = batch
+        return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
         """Update the validation metrics.
@@ -138,7 +138,7 @@ class Ranker(LightningModule, abc.ABC):
             dataloader_idx (int): DataLoader index.
 
         Returns:
-            Dict[str, torch.Tensor]: Scores.
+            Dict[str, torch.Tensor]: Scores and batch indices.
         """
-        (inputs,) = batch
-        return {"scores": self(inputs).flatten(), "batch_idx": batch_idx}
+        (model_inputs,) = batch
+        return {"scores": self(model_inputs).flatten(), "batch_idx": batch_idx}

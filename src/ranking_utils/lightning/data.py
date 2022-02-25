@@ -13,16 +13,16 @@ PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
 ValidationInstance = Tuple[str, str, int, int]
 PredictionInstance = Tuple[str, str]
-Input = Any
-PointwiseTrainingInput = Tuple[Input, int]
-PairwiseTrainingInput = Tuple[Input, Input]
-ValidationInput = Tuple[Input, int, int]
-PredictionInput = Tuple[Input]
-Batch = Any
-PointwiseTrainingBatch = Tuple[Batch, torch.Tensor]
-PairwiseTrainingBatch = Tuple[Batch, Batch]
-ValidationBatch = Tuple[Batch, torch.Tensor, torch.Tensor]
-PredictionBatch = Tuple[Batch]
+ModelInput = Any
+PointwiseTrainingInput = Tuple[ModelInput, int]
+PairwiseTrainingInput = Tuple[ModelInput, ModelInput]
+ValidationInput = Tuple[ModelInput, int, int]
+PredictionInput = Tuple[ModelInput]
+ModelBatch = Any
+PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor]
+PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch]
+ValidationBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
+PredictionBatch = Tuple[ModelBatch]
 
 
 class Mode(Enum):
@@ -219,21 +219,21 @@ class RankingDataset(Dataset):
         self,
         data_provider: DataProvider,
         mode: Mode,
-        get_input: Callable[[str, str], Input],
-        get_batch: Callable[[Iterable[Input]], Batch],
+        get_model_input: Callable[[str, str], ModelInput],
+        get_model_batch: Callable[[Iterable[ModelInput]], ModelBatch],
     ):
         """Constructor.
 
         Args:
             data_provider (DataProvider): A data provider.
             mode (Mode): The dataset mode, determining the instances to return.
-            get_input (Callable[[str, str], Input]): A function to create model inputs from query-document pairs.
-            get_batch (Callable[[Iterable[Input]], Batch]): A function to create batches from single inputs.
+            get_model_input (Callable[[str, str], ModelInput]): A function to create model inputs from query-document pairs.
+            get_model_batch (Callable[[Iterable[ModelInput]], ModelBatch]): A function to create batches from single inputs.
         """
         self.data_provider = data_provider
         self.mode = mode
-        self.get_input = get_input
-        self.get_batch = get_batch
+        self.get_model_input = get_model_input
+        self.get_model_batch = get_model_batch
 
     def __getitem__(
         self, index: int
@@ -254,23 +254,26 @@ class RankingDataset(Dataset):
         if self.mode == Mode.POINTWISE_TRAINING:
             instance = self.data_provider.get_pointwise_training_instance(index)
             query, doc, label = instance
-            return self.get_input(query, doc), label
-        elif self.mode == Mode.PAIRWISE_TRAINING:
+            return self.get_model_input(query, doc), label
+
+        if self.mode == Mode.PAIRWISE_TRAINING:
             instance = self.data_provider.get_pairwise_training_instance(index)
             query, pos_doc, neg_doc = instance
             return (
-                self.get_input(query, pos_doc),
-                self.get_input(query, neg_doc),
+                self.get_model_input(query, pos_doc),
+                self.get_model_input(query, neg_doc),
             )
-        elif self.mode == Mode.VALIDATION:
+
+        if self.mode == Mode.VALIDATION:
             instance = self.data_provider.get_validation_instance(index)
             query, doc, q_id, label = instance
-            return self.get_input(query, doc), q_id, label
-        elif self.mode == Mode.TESTING:
+            return self.get_model_input(query, doc), q_id, label
+
+        if self.mode == Mode.TESTING:
             instance = self.data_provider.get_test_instance(index)
             query, doc = instance
             # return a single-item tuple here for consistency
-            return (self.get_input(query, doc),)
+            return (self.get_model_input(query, doc),)
 
     def __len__(self) -> int:
         """Number of instances.
@@ -280,11 +283,14 @@ class RankingDataset(Dataset):
         """
         if self.mode == Mode.POINTWISE_TRAINING:
             return self.data_provider.num_pointwise_training_instances
-        elif self.mode == Mode.PAIRWISE_TRAINING:
+
+        if self.mode == Mode.PAIRWISE_TRAINING:
             return self.data_provider.num_pairwise_training_instances
-        elif self.mode == Mode.VALIDATION:
+
+        if self.mode == Mode.VALIDATION:
             return self.data_provider.num_validation_instances
-        elif self.mode == Mode.TESTING:
+
+        if self.mode == Mode.TESTING:
             return self.data_provider.num_test_instances
 
     def collate_fn(
@@ -308,30 +314,33 @@ class RankingDataset(Dataset):
         """
         if self.mode == Mode.POINTWISE_TRAINING:
             model_inputs, labels = zip(*inputs)
-            return self.get_batch(model_inputs), torch.FloatTensor(labels)
-        elif self.mode == Mode.PAIRWISE_TRAINING:
+            return self.get_model_batch(model_inputs), torch.FloatTensor(labels)
+
+        if self.mode == Mode.PAIRWISE_TRAINING:
             pos_inputs, neg_inputs = zip(*inputs)
             return (
-                self.get_batch(pos_inputs),
-                self.get_batch(neg_inputs),
+                self.get_model_batch(pos_inputs),
+                self.get_model_batch(neg_inputs),
             )
-        elif self.mode == Mode.VALIDATION:
+
+        if self.mode == Mode.VALIDATION:
             model_inputs, q_ids, labels = zip(*inputs)
             return (
-                self.get_batch(model_inputs),
+                self.get_model_batch(model_inputs),
                 torch.LongTensor(q_ids),
                 torch.LongTensor(labels),
             )
-        elif self.mode == Mode.TESTING:
+
+        if self.mode == Mode.TESTING:
             (model_inputs,) = zip(*inputs)
             # return a single-item tuple here for consistency
-            return (self.get_batch(model_inputs),)
+            return (self.get_model_batch(model_inputs),)
 
 
 class RankingDataModule(LightningDataModule, abc.ABC):
     """Data module that handles input creation, batching and data loaders.
     Must be overridden individually for each model. Methods to be implemented:
-        * get_input
+        * get_model_input
         * get_batch
     """
 
@@ -359,7 +368,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         self.num_workers = num_workers
 
     @abc.abstractmethod
-    def get_input(self, query: str, doc: str) -> Input:
+    def get_model_input(self, query: str, doc: str) -> ModelInput:
         """Transform a single query-document pair into a model input.
 
         Args:
@@ -367,19 +376,19 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             doc (str): The document.
 
         Returns:
-            Input: The model input.
+            ModelInput: The model input.
         """
         pass
 
     @abc.abstractmethod
-    def get_batch(self, inputs: Iterable[Input]) -> Batch:
+    def get_model_batch(self, inputs: Iterable[ModelInput]) -> ModelBatch:
         """Collate a number of model inputs into a batch.
 
         Args:
-            inputs (Iterable[Input]): The model inputs.
+            inputs (Iterable[ModelInput]): The model inputs.
 
         Returns:
-            Batch: The resulting batch.
+            ModelBatch: The resulting batch.
         """
         pass
 
@@ -390,7 +399,10 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             DataLoader: The DataLoader.
         """
         train_ds = RankingDataset(
-            self.data_provider, self.training_mode, self.get_input, self.get_batch
+            self.data_provider,
+            self.training_mode,
+            self.get_model_input,
+            self.get_model_batch,
         )
         return DataLoader(
             train_ds,
@@ -410,7 +422,10 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             return None
 
         val_ds = RankingDataset(
-            self.data_provider, Mode.VALIDATION, self.get_input, self.get_batch
+            self.data_provider,
+            Mode.VALIDATION,
+            self.get_model_input,
+            self.get_model_batch,
         )
         return DataLoader(
             val_ds,
@@ -430,7 +445,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             return None
 
         test_ds = RankingDataset(
-            self.data_provider, Mode.TESTING, self.get_input, self.get_batch
+            self.data_provider, Mode.TESTING, self.get_model_input, self.get_model_batch
         )
         return DataLoader(
             test_ds,
