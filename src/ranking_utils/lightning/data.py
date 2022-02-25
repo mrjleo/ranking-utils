@@ -211,7 +211,7 @@ class H5DataProvider(DataProvider):
 
 
 class RankingDataset(Dataset):
-    """Dataset for training, validation and testing of ranking models."""
+    """PyTorch dataset for training, validation and testing of ranking models."""
 
     def __init__(
         self,
@@ -245,31 +245,23 @@ class RankingDataset(Dataset):
             Union[PointwiseTrainingInput, PairwiseTrainingInput, EvaluationInput]: Input, depending on the mode.
         """
         if self.mode == Mode.POINTWISE_TRAINING:
-            query, doc, label = self.data_provider.get_pointwise_training_instance(
-                index
-            )
+            instance = self.data_provider.get_pointwise_training_instance(index)
+            query, doc, label = instance
             return self.get_input(query, doc), label
         elif self.mode == Mode.PAIRWISE_TRAINING:
-            query, pos_doc, neg_doc = self.data_provider.get_pairwise_training_instance(
-                index
-            )
+            instance = self.data_provider.get_pairwise_training_instance(index)
+            query, pos_doc, neg_doc = instance
             return (
                 self.get_input(query, pos_doc),
                 self.get_input(query, neg_doc),
             )
         elif self.mode == Mode.VALIDATION:
-            (
-                query,
-                doc,
-                q_id,
-                doc_id,
-                label,
-            ) = self.data_provider.get_validation_instance(index)
+            instance = self.data_provider.get_validation_instance(index)
+            query, doc, q_id, doc_id, label = instance
             return self.get_input(query, doc), q_id, doc_id, label
         elif self.mode == Mode.TESTING:
-            query, doc, q_id, doc_id, label = self.data_provider.get_test_instance(
-                index
-            )
+            instance = self.data_provider.get_test_instance(index)
+            query, doc, q_id, doc_id, label = instance
             return self.get_input(query, doc), q_id, doc_id, label
 
     def __len__(self) -> int:
@@ -345,9 +337,9 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
         """
         super().__init__()
-        self.data_provider = data_provider
         if training_mode not in (Mode.POINTWISE_TRAINING, Mode.PAIRWISE_TRAINING):
             raise ValueError(f"Invalid training mode: {training_mode}")
+        self.data_provider = data_provider
         self.training_mode = training_mode
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -400,7 +392,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         Returns:
             Optional[DataLoader]: The DataLoader, or None if there is no validation set.
         """
-        if self.data_provider.num_validation_instances == 0:
+        if not self.data_provider.num_validation_instances > 0:
             return None
 
         val_ds = RankingDataset(
@@ -413,4 +405,3 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             num_workers=self.num_workers,
             collate_fn=getattr(val_ds, "collate_fn", None),
         )
-

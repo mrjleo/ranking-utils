@@ -99,19 +99,19 @@ class Ranker(LightningModule, abc.ABC):
             batch_idx (int): Batch index.
 
         Returns:
-            Dict[str, torch.Tensor]: Query IDs, predictions and labels.
+            Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
         inputs, q_ids, _, labels = batch
-        return {"q_ids": q_ids, "predictions": self(inputs).flatten(), "labels": labels}
+        return {"q_ids": q_ids, "scores": self(inputs).flatten(), "labels": labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
         """Update the validation metrics.
 
         Args:
-            step_results (Dict[str, torch.Tensor]): Results from a single validation step.
+            step_results (Dict[str, torch.Tensor]): Results from a validation step.
         """
         self.val_metrics(
-            step_results["predictions"],
+            step_results["scores"],
             step_results["labels"],
             indexes=step_results["q_ids"],
         )
