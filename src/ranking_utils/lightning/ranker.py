@@ -14,7 +14,8 @@ from ranking_utils.lightning.data import (
     Mode,
     PointwiseTrainingBatch,
     PairwiseTrainingBatch,
-    EvaluationBatch,
+    PredictionBatch,
+    ValidationBatch,
 )
 
 
@@ -57,7 +58,7 @@ class Ranker(LightningModule, abc.ABC):
         """Return all validation metrics that are computed after each epoch.
 
         Returns:
-            Sequence[str]: The metric names
+            Sequence[str]: The metric names.
         """
         return self.val_metrics.keys()
 
@@ -90,18 +91,18 @@ class Ranker(LightningModule, abc.ABC):
         return loss
 
     def validation_step(
-        self, batch: EvaluationBatch, batch_idx: int
+        self, batch: ValidationBatch, batch_idx: int
     ) -> Dict[str, torch.Tensor]:
         """Process a validation batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (EvaluationBatch): Inputs, internal query IDs, internal document IDs and labels.
+            batch (ValidationBatch): Inputs, internal query IDs, internal document IDs and labels.
             batch_idx (int): Batch index.
 
         Returns:
             Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
-        inputs, q_ids, _, labels = batch
+        inputs, q_ids, labels = batch
         return {"q_ids": q_ids, "scores": self(inputs).flatten(), "labels": labels}
 
     def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
@@ -125,3 +126,19 @@ class Ranker(LightningModule, abc.ABC):
         for metric, value in self.val_metrics.compute().items():
             self.log(metric, value, sync_dist=True)
         self.val_metrics.reset()
+
+    def predict_step(
+        self, batch: PredictionBatch, batch_idx: int
+    ) -> Dict[str, torch.Tensor]:
+        """Compute scores for a prediction batch.
+
+        Args:
+            batch (PredictionBatch): Inputs.
+            batch_idx (int): Batch index.
+            dataloader_idx (int): DataLoader index.
+
+        Returns:
+            Dict[str, torch.Tensor]: Scores.
+        """
+        (inputs,) = batch
+        return {"scores": self(inputs).flatten(), "batch_idx": batch_idx}
