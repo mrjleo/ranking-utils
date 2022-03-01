@@ -136,7 +136,7 @@ class Ranker(LightningModule, abc.ABC):
         Args:
             step_results (Dict[str, torch.Tensor]): Results from a test step.
         """
-        self.val_metrics(
+        self.test_metrics(
             step_results["scores"],
             step_results["labels"],
             indexes=step_results["q_ids"],
@@ -148,9 +148,9 @@ class Ranker(LightningModule, abc.ABC):
         Args:
             test_results (Iterable[Dict[str, torch.Tensor]]): Results of the test steps.
         """
-        for metric, value in self.val_metrics.compute().items():
+        for metric, value in self.test_metrics.compute().items():
             self.log(metric, value, sync_dist=True)
-        self.val_metrics.reset()
+        self.test_metrics.reset()
 
     # def predict_step(self, batch: PredictBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
     #     """Compute scores for a predict batch.
