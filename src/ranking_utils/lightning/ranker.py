@@ -14,13 +14,13 @@ from ranking_utils.lightning.data import (
     Mode,
     PointwiseTrainingBatch,
     PairwiseTrainingBatch,
-    PredictionBatch,
     ValidationBatch,
+    TestBatch,
 )
 
 
 class Ranker(LightningModule, abc.ABC):
-    """Base class for rankers. Implements AP, RR and nDCG validation.
+    """Base class for rankers. Implements AP, RR and nDCG for validation and testing.
     This class needs to be extended and the following methods must be implemented:
         * forward
         * configure_optimizers (alternatively, this can be implemented in the data module)
@@ -44,23 +44,13 @@ class Ranker(LightningModule, abc.ABC):
         else:
             raise ValueError(f"Invalid training mode: {training_mode}")
 
+        metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
-            [
-                RetrievalMAP(compute_on_step=False),
-                RetrievalMRR(compute_on_step=False),
-                RetrievalNormalizedDCG(compute_on_step=False),
-            ],
-            prefix="val_",
+            [M(compute_on_step=False) for M in metrics], prefix="val_",
         )
-
-    @property
-    def val_metric_names(self) -> Sequence[str]:
-        """Return all validation metrics that are computed after each epoch.
-
-        Returns:
-            Sequence[str]: The metric names.
-        """
-        return self.val_metrics.keys()
+        self.test_metrics = MetricCollection(
+            [M(compute_on_step=False) for M in metrics], prefix="test_",
+        )
 
     def training_step(
         self,
@@ -118,7 +108,7 @@ class Ranker(LightningModule, abc.ABC):
         )
 
     def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
-        """Compute validation metrics. The results may be approximate.
+        """Compute validation metrics.
 
         Args:
             val_results (Iterable[Dict[str, torch.Tensor]]): Results of the validation steps.
@@ -127,18 +117,51 @@ class Ranker(LightningModule, abc.ABC):
             self.log(metric, value, sync_dist=True)
         self.val_metrics.reset()
 
-    def predict_step(
-        self, batch: PredictionBatch, batch_idx: int
-    ) -> Dict[str, torch.Tensor]:
-        """Compute scores for a prediction batch.
+    def test_step(self, batch: TestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
+        """Process a test batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (PredictionBatch): Inputs.
+            batch (TestBatch): A validation batch.
             batch_idx (int): Batch index.
-            dataloader_idx (int): DataLoader index.
 
         Returns:
-            Dict[str, torch.Tensor]: Scores and batch indices.
+            Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
-        (model_inputs,) = batch
-        return {"scores": self(model_inputs).flatten(), "batch_idx": batch_idx}
+        model_batch, q_ids, labels = batch
+        return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
+
+    def test_step_end(self, step_results: Dict[str, torch.Tensor]):
+        """Update the test metrics.
+
+        Args:
+            step_results (Dict[str, torch.Tensor]): Results from a test step.
+        """
+        self.val_metrics(
+            step_results["scores"],
+            step_results["labels"],
+            indexes=step_results["q_ids"],
+        )
+
+    def test_epoch_end(self, test_results: Iterable[Dict[str, torch.Tensor]]):
+        """Compute test metrics.
+
+        Args:
+            test_results (Iterable[Dict[str, torch.Tensor]]): Results of the test steps.
+        """
+        for metric, value in self.val_metrics.compute().items():
+            self.log(metric, value, sync_dist=True)
+        self.val_metrics.reset()
+
+    # def predict_step(self, batch: PredictBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
+    #     """Compute scores for a predict batch.
+
+    #     Args:
+    #         batch (PredictBatch): Inputs.
+    #         batch_idx (int): Batch index.
+    #         dataloader_idx (int): DataLoader index.
+
+    #     Returns:
+    #         Dict[str, torch.Tensor]: Indices and scores.
+    #     """
+    #     indices, model_inputs = batch
+    #     return {"indices": indices, "scores": self(model_inputs).flatten()}

@@ -11,18 +11,18 @@ from pytorch_lightning import LightningDataModule
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
-ValidationInstance = Tuple[str, str, int, int]
-PredictionInstance = Tuple[str, str]
+ValidationInstance = TestInstance = Tuple[str, str, int, int]
+# PredictInstance = Tuple[int, str, str]
 ModelInput = Any
 PointwiseTrainingInput = Tuple[ModelInput, int]
 PairwiseTrainingInput = Tuple[ModelInput, ModelInput]
-ValidationInput = Tuple[ModelInput, int, int]
-PredictionInput = Tuple[ModelInput]
+ValidationInput = TestInput = Tuple[ModelInput, int, int]
+# PredictInput = Tuple[int, ModelInput]
 ModelBatch = Any
 PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor]
 PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch]
-ValidationBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
-PredictionBatch = Tuple[ModelBatch]
+ValidationBatch = TestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
+# PredictBatch = Tuple[torch.Tensor, ModelBatch]
 
 
 class Mode(Enum):
@@ -74,14 +74,14 @@ class DataProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_test_instance(self, index: int) -> PredictionInstance:
+    def get_test_instance(self, index: int) -> TestInstance:
         """Return a test instance.
 
         Args:
             index (int): The test instance index.
 
         Returns:
-            PredictionInstance: Query, document, internal query ID, internal document ID and label.
+            TestInstance: Query, document, internal query ID and label.
         """
         pass
 
@@ -174,14 +174,34 @@ class H5DataProvider(DataProvider):
             doc = fp["docs"].asstr()[doc_id]
         return query, doc, q_id, label
 
-    def get_test_instance(self, index: int) -> PredictionInstance:
+    def get_test_instance(self, index: int) -> TestInstance:
         with h5py.File(self.test_file, "r") as fp:
             q_id = fp["q_ids"][index]
             doc_id = fp["doc_ids"][index]
+            label = fp["labels"][index]
         with h5py.File(self.data_file, "r") as fp:
             query = fp["queries"].asstr()[q_id]
             doc = fp["docs"].asstr()[doc_id]
-        return query, doc
+        return query, doc, q_id, label
+
+    # def get_test_instance(self, index: int) -> PredictInstance:
+    #     with h5py.File(self.test_file, "r") as fp:
+    #         q_id = fp["q_ids"][index]
+    #         doc_id = fp["doc_ids"][index]
+    #     with h5py.File(self.data_file, "r") as fp:
+    #         query = fp["queries"].asstr()[q_id]
+    #         doc = fp["docs"].asstr()[doc_id]
+    #     return index, query, doc
+
+    # def get_test_ids(self, index: int):
+    #     with h5py.File(self.data_file, "r") as fp_data, h5py.File(
+    #         self.test_file, "r"
+    #     ) as fp_test:
+    #         q_id = fp_test["q_ids"][index]
+    #         orig_q_id = fp_data["orig_q_ids"].asstr()[q_id]
+    #         doc_id = fp_test["doc_ids"][index]
+    #         orig_doc_id = fp_data["orig_doc_ids"].asstr()[doc_id]
+    #         return orig_q_id, orig_doc_id
 
     @property
     def num_pointwise_training_instances(self) -> int:
@@ -238,10 +258,7 @@ class RankingDataset(Dataset):
     def __getitem__(
         self, index: int
     ) -> Union[
-        PointwiseTrainingInput,
-        PairwiseTrainingInput,
-        ValidationInstance,
-        PredictionInstance,
+        PointwiseTrainingInput, PairwiseTrainingInput, ValidationInput, TestInput,
     ]:
         """Return an input.
 
@@ -249,7 +266,7 @@ class RankingDataset(Dataset):
             index (int): Item index.
 
         Returns:
-            Union[PointwiseTrainingInput, PairwiseTrainingInput, ValidationInstance, PredictionInstance]: Input, depending on the mode.
+            Union[PointwiseTrainingInput, PairwiseTrainingInput, ValidationInput, TestInput]: Input, depending on the mode.
         """
         if self.mode == Mode.POINTWISE_TRAINING:
             instance = self.data_provider.get_pointwise_training_instance(index)
@@ -271,9 +288,8 @@ class RankingDataset(Dataset):
 
         if self.mode == Mode.TESTING:
             instance = self.data_provider.get_test_instance(index)
-            query, doc = instance
-            # return a single-item tuple here for consistency
-            return (self.get_model_input(query, doc),)
+            query, doc, q_id, label = instance
+            return self.get_model_input(query, doc), q_id, label
 
     def __len__(self) -> int:
         """Number of instances.
@@ -299,18 +315,18 @@ class RankingDataset(Dataset):
             Iterable[PointwiseTrainingInput],
             Iterable[PairwiseTrainingInput],
             Iterable[ValidationInput],
-            Iterable[PredictionInput],
+            Iterable[TestInput],
         ],
     ) -> Union[
-        PointwiseTrainingBatch, PairwiseTrainingBatch, ValidationBatch, PredictionBatch
+        PointwiseTrainingBatch, PairwiseTrainingBatch, ValidationBatch, TestBatch
     ]:
         """Collate inputs into a batch.
 
         Args:
-            inputs (Union[Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput], Iterable[ValidationInput], Iterable[PredictionInput]]): The inputs.
+            inputs (Union[Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput], Iterable[ValidationInput], Iterable[TestInput]]): The inputs.
 
         Returns:
-            Union[PointwiseTrainingBatch, PairwiseTrainingBatch, ValidationBatch, PredictionBatch]: The resulting batch.
+            Union[PointwiseTrainingBatch, PairwiseTrainingBatch, ValidationBatch, TestBatch]: The resulting batch.
         """
         if self.mode == Mode.POINTWISE_TRAINING:
             model_inputs, labels = zip(*inputs)
@@ -323,18 +339,13 @@ class RankingDataset(Dataset):
                 self.get_model_batch(neg_inputs),
             )
 
-        if self.mode == Mode.VALIDATION:
+        if self.mode in (Mode.VALIDATION, Mode.TESTING):
             model_inputs, q_ids, labels = zip(*inputs)
             return (
                 self.get_model_batch(model_inputs),
                 torch.LongTensor(q_ids),
                 torch.LongTensor(labels),
             )
-
-        if self.mode == Mode.TESTING:
-            (model_inputs,) = zip(*inputs)
-            # return a single-item tuple here for consistency
-            return (self.get_model_batch(model_inputs),)
 
 
 class RankingDataModule(LightningDataModule, abc.ABC):
@@ -409,7 +420,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             shuffle=True,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=getattr(train_ds, "collate_fn", None),
+            collate_fn=train_ds.collate_fn,
         )
 
     def val_dataloader(self) -> Optional[DataLoader]:
@@ -432,14 +443,14 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             shuffle=False,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=getattr(val_ds, "collate_fn", None),
+            collate_fn=val_ds.collate_fn,
         )
 
-    def predict_dataloader(self) -> Optional[DataLoader]:
-        """Return a prediction DataLoader if the test set exists.
+    def test_dataloader(self) -> Optional[DataLoader]:
+        """Return a test DataLoader if the test set exists.
 
         Returns:
-            Optional[DataLoader]: The DataLoader, or None if there is no testing dataset.
+            Optional[DataLoader]: The DataLoader, or None if there is no test dataset.
         """
         if not self.data_provider.num_test_instances > 0:
             return None
@@ -452,5 +463,5 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             shuffle=False,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=getattr(test_ds, "collate_fn", None),
+            collate_fn=test_ds.collate_fn,
         )
