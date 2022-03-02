@@ -16,6 +16,7 @@ from ranking_utils.lightning.data import (
     PairwiseTrainingBatch,
     ValidationBatch,
     TestBatch,
+    PredictionBatch,
 )
 
 
@@ -152,16 +153,18 @@ class Ranker(LightningModule, abc.ABC):
             self.log(metric, value, sync_dist=True)
         self.test_metrics.reset()
 
-    # def predict_step(self, batch: PredictBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
-    #     """Compute scores for a predict batch.
+    def predict_step(
+        self, batch: PredictionBatch, batch_idx: int
+    ) -> Dict[str, torch.Tensor]:
+        """Compute scores for a prediction batch.
 
-    #     Args:
-    #         batch (PredictBatch): Inputs.
-    #         batch_idx (int): Batch index.
-    #         dataloader_idx (int): DataLoader index.
+        Args:
+            batch (PredictionBatch): Inputs.
+            batch_idx (int): Batch index.
+            dataloader_idx (int): DataLoader index.
 
-    #     Returns:
-    #         Dict[str, torch.Tensor]: Indices and scores.
-    #     """
-    #     indices, model_inputs = batch
-    #     return {"indices": indices, "scores": self(model_inputs).flatten()}
+        Returns:
+            Dict[str, torch.Tensor]: Indices and scores.
+        """
+        indices, model_inputs = batch
+        return {"indices": indices, "scores": self(model_inputs).flatten()}
