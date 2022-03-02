@@ -557,7 +557,10 @@ class RankingDataModule(LightningDataModule, abc.ABC):
             return None
 
         pred_ds = RankingDataset(
-            self.data_provider, Mode.PREDICTION, self.get_model_input, self.get_model_batch
+            self.data_provider,
+            Mode.PREDICTION,
+            self.get_model_input,
+            self.get_model_batch,
         )
         return DataLoader(
             pred_ds,
