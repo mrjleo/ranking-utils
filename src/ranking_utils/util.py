@@ -33,7 +33,9 @@ def predict_and_save(
     strategy="dp",
 ):
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    trainer = Trainer(accelerator=accelerator, devices=devices, strategy=strategy)
+    trainer = Trainer(
+        accelerator=accelerator, devices=devices, strategy=strategy, logger=False,
+    )
     result = defaultdict(dict)
     for predictions in trainer.predict(model=ranker, datamodule=data_module):
         for index, score in zip(predictions["indices"], predictions["scores"]):
