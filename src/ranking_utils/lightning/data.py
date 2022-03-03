@@ -5,47 +5,26 @@ from enum import Enum
 import abc
 import h5py
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, IterableDataset, DataLoader
 from pytorch_lightning import LightningDataModule
 
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
-ValidationInstance = TestInstance = Tuple[str, str, int, int]
+ValTestInstance = Tuple[str, str, int, int]
 PredictionInstance = Tuple[int, str, str]
-Instance = Union[
-    PointwiseTrainingInstance,
-    PairwiseTrainingInstance,
-    ValidationInstance,
-    TestInstance,
-    PredictionInstance,
-]
 
 ModelInput = Any
 PointwiseTrainingInput = Tuple[ModelInput, int]
 PairwiseTrainingInput = Tuple[ModelInput, ModelInput]
-ValidationInput = TestInput = Tuple[ModelInput, int, int]
+ValTestInput = Tuple[ModelInput, int, int]
 PredictionInput = Tuple[int, ModelInput]
-Input = Union[
-    PointwiseTrainingInput,
-    PairwiseTrainingInput,
-    ValidationInput,
-    TestInput,
-    PredictionInput,
-]
 
 ModelBatch = Any
 PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor]
 PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch]
-ValidationBatch = TestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
+ValTestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PredictionBatch = Tuple[torch.Tensor, ModelBatch]
-Batch = Union[
-    PointwiseTrainingBatch,
-    PairwiseTrainingBatch,
-    ValidationBatch,
-    TestBatch,
-    PredictionBatch,
-]
 
 
 class Mode(Enum):
@@ -86,26 +65,26 @@ class DataProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_validation_instance(self, index: int) -> ValidationInstance:
+    def get_validation_instance(self, index: int) -> ValTestInstance:
         """Return a validation instance.
 
         Args:
             index (int): The validation instance index.
 
         Returns:
-            ValidationInstance: Query, document, internal query ID and label.
+            ValTestInstance: Query, document, internal query ID and label.
         """
         pass
 
     @abc.abstractmethod
-    def get_test_instance(self, index: int) -> TestInstance:
+    def get_test_instance(self, index: int) -> ValTestInstance:
         """Return a test instance.
 
         Args:
             index (int): The test instance index.
 
         Returns:
-            TestInstance: Query, document, internal query ID and label.
+            ValTestInstance: Query, document, internal query ID and label.
         """
         pass
 
@@ -240,7 +219,7 @@ class H5DataProvider(DataProvider):
             neg_doc = fp["docs"].asstr()[neg_doc_id]
         return query, pos_doc, neg_doc
 
-    def get_validation_instance(self, index: int) -> ValidationInstance:
+    def get_validation_instance(self, index: int) -> ValTestInstance:
         if self.val_file is None:
             raise RuntimeError("No validation instances provided")
         with h5py.File(self.val_file, "r") as fp:
@@ -252,7 +231,7 @@ class H5DataProvider(DataProvider):
             doc = fp["docs"].asstr()[doc_id]
         return query, doc, q_id, label
 
-    def get_test_instance(self, index: int) -> TestInstance:
+    def get_test_instance(self, index: int) -> ValTestInstance:
         if self.test_file is None:
             raise RuntimeError("No test instances provided")
         with h5py.File(self.test_file, "r") as fp:
@@ -265,6 +244,8 @@ class H5DataProvider(DataProvider):
         return query, doc, q_id, label
 
     def get_prediction_instance(self, index: int) -> PredictionInstance:
+        if self.pred_file is None:
+            raise RuntimeError("No prediction instances provided")
         with h5py.File(self.pred_file, "r") as fp:
             q_id = fp["q_ids"][index]
             doc_id = fp["doc_ids"][index]
@@ -318,8 +299,8 @@ class H5DataProvider(DataProvider):
             return len(fp["q_ids"])
 
 
-class RankingDataset(Dataset):
-    """PyTorch dataset for training, validation and testing of ranking models."""
+class TrainingDataset(Dataset):
+    """PyTorch dataset for training of ranking models."""
 
     def __init__(
         self,
@@ -332,23 +313,28 @@ class RankingDataset(Dataset):
 
         Args:
             data_provider (DataProvider): A data provider.
-            mode (Mode): The dataset mode, determining the instances to return.
+            mode (Mode): The training mode, determining the instances to return.
             get_model_input (Callable[[str, str], ModelInput]): A function to create model inputs from query-document pairs.
             get_model_batch (Callable[[Iterable[ModelInput]], ModelBatch]): A function to create batches from single inputs.
         """
+        if mode not in (Mode.POINTWISE_TRAINING, Mode.PAIRWISE_TRAINING):
+            raise ValueError(f"Invalid training mode: {mode}")
+
         self.data_provider = data_provider
         self.mode = mode
         self.get_model_input = get_model_input
         self.get_model_batch = get_model_batch
 
-    def __getitem__(self, index: int) -> Input:
-        """Return an input.
+    def __getitem__(
+        self, index: int
+    ) -> Union[PointwiseTrainingInput, PairwiseTrainingInput]:
+        """Return a training input.
 
         Args:
             index (int): Item index.
 
         Returns:
-            Input: Input, depending on the mode.
+            Union[PointwiseTrainingInput, PairwiseTrainingInput]: Input, depending on the mode.
         """
         if self.mode == Mode.POINTWISE_TRAINING:
             instance = self.data_provider.get_pointwise_training_instance(index)
@@ -363,6 +349,76 @@ class RankingDataset(Dataset):
                 self.get_model_input(query, neg_doc),
             )
 
+    def __len__(self) -> int:
+        """Number of training instances.
+
+        Returns:
+            int: The dataset length.
+        """
+        if self.mode == Mode.POINTWISE_TRAINING:
+            return self.data_provider.num_pointwise_training_instances
+
+        if self.mode == Mode.PAIRWISE_TRAINING:
+            return self.data_provider.num_pairwise_training_instances
+
+    def collate_fn(
+        self,
+        inputs: Union[
+            Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput]
+        ],
+    ) -> Union[PointwiseTrainingBatch, PairwiseTrainingBatch]:
+        """Collate inputs into a batch.
+
+        Args:
+            inputs (Union[Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput]]): The inputs.
+
+        Returns:
+            Union[PointwiseTrainingBatch, PairwiseTrainingBatch]: The resulting batch.
+        """
+        if self.mode == Mode.POINTWISE_TRAINING:
+            model_inputs, labels = zip(*inputs)
+            return self.get_model_batch(model_inputs), torch.FloatTensor(labels)
+
+        if self.mode == Mode.PAIRWISE_TRAINING:
+            pos_inputs, neg_inputs = zip(*inputs)
+            return self.get_model_batch(pos_inputs), self.get_model_batch(neg_inputs)
+
+
+class EvaluationDataset(Dataset):
+    """PyTorch dataset for evaluation (validation, testing, prediction) of ranking models."""
+
+    def __init__(
+        self,
+        data_provider: DataProvider,
+        mode: Mode,
+        get_model_input: Callable[[str, str], ModelInput],
+        get_model_batch: Callable[[Iterable[ModelInput]], ModelBatch],
+    ):
+        """Constructor.
+
+        Args:
+            data_provider (DataProvider): A data provider.
+            mode (Mode): The evaluation mode, determining the instances to return.
+            get_model_input (Callable[[str, str], ModelInput]): A function to create model inputs from query-document pairs.
+            get_model_batch (Callable[[Iterable[ModelInput]], ModelBatch]): A function to create batches from single inputs.
+        """
+        if mode not in (Mode.VALIDATION, Mode.TESTING, Mode.PREDICTION):
+            raise ValueError(f"Invalid evaluation mode: {mode}")
+
+        self.data_provider = data_provider
+        self.mode = mode
+        self.get_model_input = get_model_input
+        self.get_model_batch = get_model_batch
+
+    def __getitem__(self, index: int) -> Union[ValTestInput, PredictionInput]:
+        """Return an evaluation input.
+
+        Args:
+            index (int): Item index.
+
+        Returns:
+            Union[ValTestInput, PredictionInput]: Input, depending on the mode.
+        """
         if self.mode == Mode.VALIDATION:
             instance = self.data_provider.get_validation_instance(index)
             query, doc, q_id, label = instance
@@ -379,17 +435,11 @@ class RankingDataset(Dataset):
             return index, self.get_model_input(query, doc)
 
     def __len__(self) -> int:
-        """Number of instances.
+        """Number of evaluation instances.
 
         Returns:
             int: The dataset length.
         """
-        if self.mode == Mode.POINTWISE_TRAINING:
-            return self.data_provider.num_pointwise_training_instances
-
-        if self.mode == Mode.PAIRWISE_TRAINING:
-            return self.data_provider.num_pairwise_training_instances
-
         if self.mode == Mode.VALIDATION:
             return self.data_provider.num_validation_instances
 
@@ -399,23 +449,17 @@ class RankingDataset(Dataset):
         if self.mode == Mode.PREDICTION:
             return self.data_provider.num_prediction_instances
 
-    def collate_fn(self, inputs: Iterable[Input]) -> Batch:
+    def collate_fn(
+        self, inputs: Union[Iterable[ValTestInput], Iterable[PredictionInput]]
+    ) -> Union[ValTestBatch, PredictionBatch]:
         """Collate inputs into a batch.
 
         Args:
-            inputs (Iterable[Input]): The inputs.
+            inputs (Union[Iterable[ValTestInput], Iterable[PredictionInput]]): The inputs.
 
         Returns:
-            Batch: The resulting batch.
+            Union[ValTestBatch, PredictionBatch]: The resulting batch.
         """
-        if self.mode == Mode.POINTWISE_TRAINING:
-            model_inputs, labels = zip(*inputs)
-            return self.get_model_batch(model_inputs), torch.FloatTensor(labels)
-
-        if self.mode == Mode.PAIRWISE_TRAINING:
-            pos_inputs, neg_inputs = zip(*inputs)
-            return self.get_model_batch(pos_inputs), self.get_model_batch(neg_inputs)
-
         if self.mode in (Mode.VALIDATION, Mode.TESTING):
             model_inputs, q_ids, labels = zip(*inputs)
             return (
@@ -439,24 +483,24 @@ class RankingDataModule(LightningDataModule, abc.ABC):
     def __init__(
         self,
         data_provider: DataProvider,
-        training_mode: Mode,
         batch_size: int,
+        training_mode: Mode = Mode.POINTWISE_TRAINING,
         num_workers: int = 16,
     ):
         """Constructor.
 
         Args:
             data_provider (DataProvider): A data provider.
-            training_mode (Mode): The training mode to use.
             batch_size (int): The batch size to use.
+            training_mode (Mode): The training mode to use. Defaults to Mode.POINTWISE_TRAINING.
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
         """
         super().__init__()
         if training_mode not in (Mode.POINTWISE_TRAINING, Mode.PAIRWISE_TRAINING):
             raise ValueError(f"Invalid training mode: {training_mode}")
         self.data_provider = data_provider
-        self.training_mode = training_mode
         self.batch_size = batch_size
+        self.training_mode = training_mode
         self.num_workers = num_workers
 
     @abc.abstractmethod
@@ -490,7 +534,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         Returns:
             DataLoader: The DataLoader.
         """
-        train_ds = RankingDataset(
+        train_ds = TrainingDataset(
             self.data_provider,
             self.training_mode,
             self.get_model_input,
@@ -513,7 +557,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         if not self.data_provider.num_validation_instances > 0:
             return None
 
-        val_ds = RankingDataset(
+        val_ds = EvaluationDataset(
             self.data_provider,
             Mode.VALIDATION,
             self.get_model_input,
@@ -536,7 +580,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         if not self.data_provider.num_test_instances > 0:
             return None
 
-        test_ds = RankingDataset(
+        test_ds = EvaluationDataset(
             self.data_provider, Mode.TESTING, self.get_model_input, self.get_model_batch
         )
         return DataLoader(
@@ -556,7 +600,7 @@ class RankingDataModule(LightningDataModule, abc.ABC):
         if not self.data_provider.num_prediction_instances > 0:
             return None
 
-        pred_ds = RankingDataset(
+        pred_ds = EvaluationDataset(
             self.data_provider,
             Mode.PREDICTION,
             self.get_model_input,

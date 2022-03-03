@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Iterable, Sequence, Union
+from typing import Any, Dict, Iterable, Union
 
 import torch
 from pytorch_lightning import LightningModule
@@ -14,8 +14,7 @@ from ranking_utils.lightning.data import (
     Mode,
     PointwiseTrainingBatch,
     PairwiseTrainingBatch,
-    ValidationBatch,
-    TestBatch,
+    ValTestBatch,
     PredictionBatch,
 )
 
@@ -82,12 +81,12 @@ class Ranker(LightningModule, abc.ABC):
         return loss
 
     def validation_step(
-        self, batch: ValidationBatch, batch_idx: int
+        self, batch: ValTestBatch, batch_idx: int
     ) -> Dict[str, torch.Tensor]:
         """Process a validation batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (ValidationBatch): A validation batch.
+            batch (ValTestBatch): A validation batch.
             batch_idx (int): Batch index.
 
         Returns:
@@ -118,11 +117,11 @@ class Ranker(LightningModule, abc.ABC):
             self.log(metric, value, sync_dist=True)
         self.val_metrics.reset()
 
-    def test_step(self, batch: TestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
+    def test_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Process a test batch. The returned query IDs are internal IDs.
 
         Args:
-            batch (TestBatch): A validation batch.
+            batch (ValTestBatch): A validation batch.
             batch_idx (int): Batch index.
 
         Returns:
