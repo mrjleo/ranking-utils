@@ -53,9 +53,9 @@ class Mode(Enum):
 
     POINTWISE_TRAINING = 1
     PAIRWISE_TRAINING = 2
-    VALIDATION = 3
-    TESTING = 4
-    PREDICTION = 5
+    VALIDATION = 100
+    TESTING = 101
+    PREDICTION = 102
 
 
 class DataProvider(abc.ABC):
