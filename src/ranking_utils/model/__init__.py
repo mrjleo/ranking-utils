@@ -58,13 +58,10 @@ class Ranker(LightningModule):
         """
         super().__init__()
         self.training_mode = training_mode
+        self.loss_margin = loss_margin
+        self.bce = torch.nn.BCEWithLogitsLoss()
         if hparams is not None:
             self.save_hyperparameters(hparams)
-
-        if training_mode == TrainingMode.POINTWISE:
-            self.bce = torch.nn.BCEWithLogitsLoss()
-        if training_mode == TrainingMode.PAIRWISE:
-            self.loss_margin = loss_margin
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(

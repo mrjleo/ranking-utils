@@ -1,4 +1,4 @@
-from typing import Iterable, Union
+from typing import Iterable, Tuple, Union
 
 import abc
 import torch
@@ -271,6 +271,18 @@ class PredictionDataset(Dataset, abc.ABC):
 
         Returns:
             PredictionInstance: The corresponding instance.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_ids(self, index: int) -> Tuple[str, str]:
+        """Return the original query ID and document ID corresponding to an index.
+
+        Args:
+            index (int): The index.
+
+        Returns:
+            Tuple[str, str]: Query ID and document ID.
         """
         pass
 
