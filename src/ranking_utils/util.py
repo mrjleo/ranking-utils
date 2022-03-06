@@ -1,47 +1,28 @@
 import csv
 from pathlib import Path
-from collections import defaultdict
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Sequence
 
-import h5py
 import torch
-from tqdm import tqdm
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import BasePredictionWriter
 
-from ranking_utils.model.ranker import Ranker
-from ranking_utils.model.data import RankingDataModule
+from ranking_utils.model import Ranker
 
 
-# class CustomWriter(BasePredictionWriter):
-#     def __init__(self, temp_dir: Path):
-#         super().__init__("epoch")
-#         self.temp_dir = temp_dir
+class RankingPredictionWriter(BasePredictionWriter):
+    def __init__(self, out_dir: Path):
+        super().__init__("epoch")
+        self.out_dir = out_dir
 
-#     def write_on_epoch_end(self, trainer, pl_module, predictions, batch_indices):
-#         out_file = self.temp_dir / f"out_{trainer.global_rank}"
-#         torch.save(predictions, out_file)
-
-
-def predict_and_save(
-    ranker: Ranker,
-    data_module: RankingDataModule,
-    out_file: Path,
-    name: str,
-    accelerator="auto",
-    devices="auto",
-    strategy="dp",
-):
-    out_file.parent.mkdir(parents=True, exist_ok=True)
-    trainer = Trainer(
-        accelerator=accelerator, devices=devices, strategy=strategy, logger=False,
-    )
-    result = defaultdict(dict)
-    for predictions in trainer.predict(model=ranker, datamodule=data_module):
-        for index, score in zip(predictions["indices"], predictions["scores"]):
-            q_id, doc_id = data_module.data_provider.get_prediction_ids(index)
-            result[q_id][doc_id] = score.numpy()
-    write_trec_eval_file(out_file, result, name)
+    def write_on_epoch_end(
+        self,
+        trainer: Trainer,
+        pl_module: Ranker,
+        predictions: Sequence[torch.Tensor],
+        batch_indices: Sequence[int],
+    ):
+        out_file = self.out_dir / f"out_{trainer.global_rank}"
+        torch.save(predictions, out_file)
 
 
 def write_trec_eval_file(
