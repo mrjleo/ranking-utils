@@ -60,7 +60,7 @@ class H5TrainingDataset(TrainingDataset):
         return query, doc, label
 
     def _get_pairwise_instance(self, index: int) -> PairwiseTrainingInstance:
-        with h5py.File(self.train_file_pairwise, "r") as fp:
+        with h5py.File(self.train_file, "r") as fp:
             q_id = fp["q_ids"][index]
             pos_doc_id = fp["pos_doc_ids"][index]
             neg_doc_id = fp["neg_doc_ids"][index]
