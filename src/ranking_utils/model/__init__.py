@@ -1,5 +1,5 @@
-import abc
-from typing import Any, Dict, Iterable, Union
+from enum import Enum
+from typing import Any, Dict, Iterable, Union, Tuple
 
 import torch
 from pytorch_lightning import LightningModule
@@ -10,16 +10,33 @@ from torchmetrics import (
     RetrievalNormalizedDCG,
 )
 
-from ranking_utils.lightning.data import (
-    Mode,
-    PointwiseTrainingBatch,
-    PairwiseTrainingBatch,
-    ValTestBatch,
-    PredictionBatch,
-)
+
+PointwiseTrainingInstance = Tuple[str, str, int]
+PairwiseTrainingInstance = Tuple[str, str, str]
+ValTestInstance = Tuple[str, str, int, int]
+PredictionInstance = Tuple[int, str, str]
+
+ModelInput = Any
+PointwiseTrainingInput = Tuple[ModelInput, int]
+PairwiseTrainingInput = Tuple[ModelInput, ModelInput]
+ValTestInput = Tuple[ModelInput, int, int]
+PredictionInput = Tuple[int, ModelInput]
+
+ModelBatch = Any
+PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor]
+PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch]
+ValTestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
+PredictionBatch = Tuple[torch.Tensor, ModelBatch]
 
 
-class Ranker(LightningModule, abc.ABC):
+class TrainingMode(Enum):
+    """Enum used to set the training mode."""
+
+    POINTWISE = 0
+    PAIRWISE = 1
+
+
+class Ranker(LightningModule):
     """Base class for rankers. Implements AP, RR and nDCG for validation and testing.
     This class needs to be extended and the following methods must be implemented:
         * forward
@@ -28,21 +45,26 @@ class Ranker(LightningModule, abc.ABC):
 
     def __init__(
         self,
-        training_mode: Mode = Mode.POINTWISE_TRAINING,
+        training_mode: TrainingMode = TrainingMode.POINTWISE,
         loss_margin: float = 1.0,
         hparams: Dict[str, Any] = None,
     ):
+        """Constructor.
+
+        Args:
+            training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
+            loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
+            hparams (Dict[str, Any], optional): Model hyperparameters. Defaults to None.
+        """
         super().__init__()
         self.training_mode = training_mode
         if hparams is not None:
             self.save_hyperparameters(hparams)
 
-        if training_mode == Mode.POINTWISE_TRAINING:
+        if training_mode == TrainingMode.POINTWISE:
             self.bce = torch.nn.BCEWithLogitsLoss()
-        elif training_mode == Mode.PAIRWISE_TRAINING:
+        if training_mode == TrainingMode.PAIRWISE:
             self.loss_margin = loss_margin
-        else:
-            raise ValueError(f"Invalid training mode: {training_mode}")
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
@@ -66,10 +88,10 @@ class Ranker(LightningModule, abc.ABC):
         Returns:
             torch.Tensor: Training loss.
         """
-        if self.training_mode == Mode.POINTWISE_TRAINING:
+        if self.training_mode == TrainingMode.POINTWISE:
             model_batch, labels = batch
             loss = self.bce(self(model_batch).flatten(), labels.flatten())
-        elif self.training_mode == Mode.PAIRWISE_TRAINING:
+        elif self.training_mode == TrainingMode.PAIRWISE:
             pos_model_batch, neg_model_batch = batch
             pos_outputs = torch.sigmoid(self(pos_model_batch))
             neg_outputs = torch.sigmoid(self(neg_model_batch))

@@ -9,8 +9,8 @@ from tqdm import tqdm
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import BasePredictionWriter
 
-from ranking_utils.lightning.ranker import Ranker
-from ranking_utils.lightning.data import RankingDataModule
+from ranking_utils.model.ranker import Ranker
+from ranking_utils.model.data import RankingDataModule
 
 
 # class CustomWriter(BasePredictionWriter):
