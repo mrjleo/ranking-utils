@@ -1,13 +1,10 @@
+import abc
 from typing import Iterable, Tuple, Union
 
-import abc
 import torch
-
-from torch.utils.data import Dataset
-
 from ranking_utils.model import (
-    ModelInput,
     ModelBatch,
+    ModelInput,
     PairwiseTrainingBatch,
     PairwiseTrainingInput,
     PairwiseTrainingInstance,
@@ -17,11 +14,12 @@ from ranking_utils.model import (
     PredictionBatch,
     PredictionInput,
     PredictionInstance,
+    TrainingMode,
     ValTestBatch,
     ValTestInput,
     ValTestInstance,
-    TrainingMode,
 )
+from torch.utils.data import Dataset
 
 
 class DataProcessor(abc.ABC):

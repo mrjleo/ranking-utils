@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Iterable, Union, Tuple
+from typing import Any, Dict, Iterable, Tuple, Union
 
 import torch
 from pytorch_lightning import LightningModule
@@ -9,7 +9,6 @@ from torchmetrics import (
     RetrievalMRR,
     RetrievalNormalizedDCG,
 )
-
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]

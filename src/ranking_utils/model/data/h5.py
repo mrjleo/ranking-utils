@@ -2,15 +2,13 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import h5py
-from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
-
 from ranking_utils.model import (
     PairwiseTrainingInstance,
     PointwiseTrainingInstance,
     PredictionInstance,
-    ValTestInstance,
     TrainingMode,
+    ValTestInstance,
 )
 from ranking_utils.model.data import (
     DataProcessor,
@@ -18,6 +16,7 @@ from ranking_utils.model.data import (
     TrainingDataset,
     ValTestDataset,
 )
+from torch.utils.data import DataLoader
 
 
 class H5TrainingDataset(TrainingDataset):

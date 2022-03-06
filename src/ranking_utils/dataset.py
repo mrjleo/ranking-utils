@@ -1,10 +1,10 @@
 import abc
+import argparse
 import csv
 import random
-import argparse
-from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Optional, Set, Tuple, List, Iterable
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import h5py
 import numpy as np
