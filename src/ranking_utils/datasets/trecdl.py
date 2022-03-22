@@ -5,7 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, Set, Tuple
 
-from ranking_utils.dataset import ParsableDataset
+from ranking_utils.datasets import ParsableDataset
 from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
 from tqdm import tqdm
 
