@@ -638,7 +638,7 @@ class ParsableDataset(Dataset, abc.ABC):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs.
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         pass
 

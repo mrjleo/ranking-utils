@@ -8,14 +8,13 @@ from ranking_utils.dataset import ParsableDataset
 
 
 class FiQA(ParsableDataset):
-    """FiQA dataset class.
-    """
+    """FiQA dataset class."""
 
     def get_queries(self) -> Dict[str, str]:
         """Return all queries.
 
         Returns:
-            Dict[str, str]: Query IDs mapped to queries
+            Dict[str, str]: Query IDs mapped to queries.
         """
         queries = {}
         with open(
@@ -33,7 +32,7 @@ class FiQA(ParsableDataset):
         """Return all documents.
 
         Returns:
-            Dict[str, str]: Document IDs mapped to documents
+            Dict[str, str]: Document IDs mapped to documents.
         """
         docs = {}
         with open(
@@ -49,7 +48,7 @@ class FiQA(ParsableDataset):
         """Return all query relevances.
 
         Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
         """
         qrels = defaultdict(dict)
         with open(
@@ -67,7 +66,7 @@ class FiQA(ParsableDataset):
         """Return all pools.
 
         Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
         """
         split_file = Path(__file__).parent.absolute() / "splits" / "fiqa_split.pkl"
         with open(split_file, "rb") as fp:
@@ -78,7 +77,7 @@ class FiQA(ParsableDataset):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         split_file = Path(__file__).parent.absolute() / "splits" / "fiqa_split.pkl"
         with open(split_file, "rb") as fp:

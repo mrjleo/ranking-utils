@@ -31,9 +31,9 @@ def write_trec_eval_file(
     """Write the results in a file accepted by the TREC evaluation tool.
 
     Args:
-        out_file (Path): File to create
-        predictions (Dict[str, Dict[str, float]]): Query IDs mapped to document IDs mapped to scores
-        name (str): Method name
+        out_file (Path): File to create.
+        predictions (Dict[str, Dict[str, float]]): Query IDs mapped to document IDs mapped to scores.
+        name (str): Method name.
     """
     out_file.parent.mkdir(parents=True, exist_ok=True)
     with open(out_file, "w", encoding="utf-8", newline="") as fp:

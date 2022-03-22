@@ -17,7 +17,7 @@ class TRECDL2019Passage(ParsableDataset):
     """TREC-DL 2019 passage ranking dataset class.
 
     Args:
-        args (argparse.Namespace): Namespace that contains the arguments
+        args (argparse.Namespace): Namespace that contains the arguments.
     """
 
     def __init__(self, args: argparse.Namespace):
@@ -98,7 +98,7 @@ class TRECDL2019Passage(ParsableDataset):
         """Return all queries.
 
         Returns:
-            Dict[str, str]: Query IDs mapped to queries
+            Dict[str, str]: Query IDs mapped to queries.
         """
         return self.queries
 
@@ -106,7 +106,7 @@ class TRECDL2019Passage(ParsableDataset):
         """Return all documents.
 
         Returns:
-            Dict[str, str]: Document IDs mapped to documents
+            Dict[str, str]: Document IDs mapped to documents.
         """
         return self.docs
 
@@ -114,7 +114,7 @@ class TRECDL2019Passage(ParsableDataset):
         """Return all query relevances.
 
         Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
         """
         return self.qrels
 
@@ -122,7 +122,7 @@ class TRECDL2019Passage(ParsableDataset):
         """Return all pools.
 
         Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
         """
         return self.pools
 
@@ -130,7 +130,7 @@ class TRECDL2019Passage(ParsableDataset):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         return [(self.train_ids, self.val_ids, self.test_ids)]
 
@@ -139,7 +139,7 @@ class TRECDL2019Document(ParsableDataset):
     """TREC-DL 2019 document ranking dataset class.
 
     Args:
-        args (argparse.Namespace): Namespace that contains the arguments
+        args (argparse.Namespace): Namespace that contains the arguments.
     """
 
     def __init__(self, args: argparse.Namespace):
@@ -174,7 +174,7 @@ class TRECDL2019Document(ParsableDataset):
         """Return all queries.
 
         Returns:
-            Dict[str, str]: Query IDs mapped to queries
+            Dict[str, str]: Query IDs mapped to queries.
         """
         return self.queries
 
@@ -182,7 +182,7 @@ class TRECDL2019Document(ParsableDataset):
         """Return all documents.
 
         Returns:
-            Dict[str, str]: Document IDs mapped to documents
+            Dict[str, str]: Document IDs mapped to documents.
         """
         docs = {}
         with open(
@@ -199,7 +199,7 @@ class TRECDL2019Document(ParsableDataset):
         """Return all query relevances.
 
         Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
         """
         qrels = {}
         qrels.update(read_qrels_trec(self.directory / "msmarco-doctrain-qrels.tsv"))
@@ -211,7 +211,7 @@ class TRECDL2019Document(ParsableDataset):
         """Return all pools.
 
         Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
         """
         top = {}
         top.update(read_top_trec(self.directory / "msmarco-doctrain-top100"))
@@ -223,6 +223,6 @@ class TRECDL2019Document(ParsableDataset):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         return [(self.train_ids, self.val_ids, self.test_ids)]

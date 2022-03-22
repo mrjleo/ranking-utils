@@ -72,7 +72,7 @@ class InsuranceQA(ParsableDataset):
         """Return all queries.
 
         Returns:
-            Dict[str, str]: Query IDs mapped to queries
+            Dict[str, str]: Query IDs mapped to queries.
         """
         return self.queries
 
@@ -80,7 +80,7 @@ class InsuranceQA(ParsableDataset):
         """Return all documents.
 
         Returns:
-            Dict[str, str]: Document IDs mapped to documents
+            Dict[str, str]: Document IDs mapped to documents.
         """
         return self.docs
 
@@ -88,7 +88,7 @@ class InsuranceQA(ParsableDataset):
         """Return all query relevances.
 
         Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
         """
         return self.qrels
 
@@ -96,7 +96,7 @@ class InsuranceQA(ParsableDataset):
         """Return all pools.
 
         Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
         """
         return self.pools
 
@@ -104,7 +104,7 @@ class InsuranceQA(ParsableDataset):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         return [(self.train_ids, self.val_ids, self.test_ids)]
 
@@ -113,8 +113,8 @@ class InsuranceQA(ParsableDataset):
         """Add a dataset-specific subparser with all required arguments.
 
         Args:
-            subparsers (argparse._SubParsersAction): Subparsers to add a parser to
-            name (str): Parser name
+            subparsers (argparse._SubParsersAction): Subparsers to add a parser to.
+            name (str): Parser name.
         """
         sp = subparsers.add_parser(name)
         sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
