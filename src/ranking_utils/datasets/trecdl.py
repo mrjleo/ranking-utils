@@ -1,15 +1,13 @@
-import sys
-import csv
 import argparse
-from pathlib import Path
+import csv
+import sys
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Iterable, Set, Tuple
-
-from tqdm import tqdm
 
 from ranking_utils.dataset import ParsableDataset
 from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
-
+from tqdm import tqdm
 
 # some documents are longer than the default limit
 csv.field_size_limit(sys.maxsize)

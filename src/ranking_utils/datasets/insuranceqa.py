@@ -1,8 +1,8 @@
+import argparse
 import csv
 import gzip
-import argparse
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Iterable, Set, Tuple
 
 from ranking_utils.dataset import ParsableDataset
