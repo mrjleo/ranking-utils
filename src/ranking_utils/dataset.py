@@ -16,10 +16,10 @@ class PointwiseTrainingset(object):
     Negatives are sampled randomly from the corresponding query pools.
 
     Args:
-        train_ids (Set[int]): Trainset query IDs
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents
-        num_negatives (int): Number of negatives per positive
+        train_ids (Set[int]): Training set query IDs.
+        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+        num_negatives (int): Number of negatives per positive.
     """
 
     def __init__(
@@ -39,7 +39,7 @@ class PointwiseTrainingset(object):
         """Create the trainingset as tuples of query ID, document ID, label.
 
         Returns:
-            List[Tuple[int, int, int]]: The trainingset
+            List[Tuple[int, int, int]]: The training set.
         """
         result = []
         # get all positives first
@@ -73,7 +73,7 @@ class PointwiseTrainingset(object):
         """Dataset length.
 
         Returns:
-            int: The number of training instances
+            int: The number of training instances.
         """
         return len(self.trainset)
 
@@ -81,15 +81,15 @@ class PointwiseTrainingset(object):
         """Yield all training examples.
 
         Yields:
-            Tuple[int, int, int]: Query ID, document ID, label
+            Tuple[int, int, int]: Query ID, document ID, label.
         """
         yield from self.trainset
 
     def save(self, dest: Path):
-        """Save the pointwise trainingset.
+        """Save the pointwise training set.
 
         Args:
-            dest (Path): File to create
+            dest (Path): File to create.
         """
         num_items = len(self)
         with h5py.File(dest, "w") as fp:
@@ -99,7 +99,7 @@ class PointwiseTrainingset(object):
                 "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
             }
             for i, (q_id, doc_id, label) in enumerate(
-                tqdm(self, desc="Saving pointwise trainset")
+                tqdm(self, desc="Saving pointwise training set")
             ):
                 ds["q_ids"][i] = q_id
                 ds["doc_ids"][i] = doc_id
@@ -111,11 +111,11 @@ class PairwiseTrainingset(object):
     The number of examples per query is balanced based on its number of positives.
 
     Args:
-        train_ids (Set[int]): Trainset query IDs
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents
-        num_negatives (int): Number of negatives per positive
-        query_limit (int): Maximum number of training examples per query
+        train_ids (Set[int]): Trainset query IDs.
+        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+        num_negatives (int): Number of negatives per positive.
+        query_limit (int): Maximum number of training examples per query.
     """
 
     def __init__(
@@ -140,10 +140,10 @@ class PairwiseTrainingset(object):
         Documents from the pool that have no associated relevance get a relevance of 0.
 
         Args:
-            q_id (int): The query ID
+            q_id (int): The query ID.
 
         Returns:
-            Dict[int, Set[int]]: Relevances mapped to sets of document IDs
+            Dict[int, Set[int]]: Relevances mapped to sets of document IDs.
         """
         result = defaultdict(set)
         for doc_id, rel in self.qrels.get(q_id, {}).items():
@@ -157,10 +157,10 @@ class PairwiseTrainingset(object):
         """Return all positive documents for a query.
 
         Args:
-            q_id (int): The query ID
+            q_id (int): The query ID.
 
         Returns:
-            List[int]: A list of document IDs
+            List[int]: A list of document IDs.
         """
         result = []
         for rel, doc_ids in self._get_docs_by_relevance(q_id).items():
@@ -172,7 +172,7 @@ class PairwiseTrainingset(object):
         """Compute 25%, 50% and 75% percentiles for the number of positives per query.
 
         Returns:
-            List[float]: The percentiles
+            List[float]: The percentiles.
         """
         num_positives = []
         for q_id in self.train_ids:
@@ -183,10 +183,10 @@ class PairwiseTrainingset(object):
         """Return a balancing factor for a query based on its number of positives.
 
         Args:
-            q_id (int): The query ID
+            q_id (int): The query ID.
 
         Returns:
-            float: The balancing factor
+            float: The balancing factor.
         """
         num_positives = len(self._get_all_positives(q_id))
         q25, q50, q75 = self.percentiles
@@ -202,10 +202,10 @@ class PairwiseTrainingset(object):
         """Return all training triples for a query as tuples of query ID, positive document ID, negative document ID.
 
         Args:
-            q_id (int): The query ID
+            q_id (int): The query ID.
 
         Returns:
-            List[Tuple[int, int, int]]: A list of training triples
+            List[Tuple[int, int, int]]: A list of training triples.
         """
         docs = self._get_docs_by_relevance(q_id)
         result = []
@@ -240,7 +240,7 @@ class PairwiseTrainingset(object):
         """Create the trainingset as tuples of query ID, positive document ID, negative document ID.
 
         Returns:
-            List[Tuple[int, int, int]]: The trainingset
+            List[Tuple[int, int, int]]: The training set.
         """
         result = []
         for q_id in self.train_ids:
@@ -259,15 +259,15 @@ class PairwiseTrainingset(object):
         """Yield all training examples.
 
         Yields:
-            Tuple[int, int, int]: Query ID, positive document ID, negative document ID
+            Tuple[int, int, int]: Query ID, positive document ID, negative document ID.
         """
         yield from self.trainset
 
     def save(self, dest: Path):
-        """Save the pairwise trainingset.
+        """Save the pairwise training set.
 
         Args:
-            dest (Path): File to create
+            dest (Path): File to create.
         """
         num_items = len(self)
         with h5py.File(dest, "w") as fp:
@@ -281,7 +281,7 @@ class PairwiseTrainingset(object):
                 ),
             }
             for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(
-                tqdm(self, desc="Saving pairwise trainset")
+                tqdm(self, desc="Saving pairwise training set")
             ):
                 ds["q_ids"][i] = q_id
                 ds["pos_doc_ids"][i] = pos_doc_id
@@ -292,12 +292,12 @@ class Testset(object):
     """A testset iterator.
 
     Args:
-        test_ids (Set[int]): Testset query IDs
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents
+        test_ids (Set[int]): Test set query IDs.
+        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
 
     Yields:
-        Tuple[int, int, int]: Query ID, document ID, label
+        Tuple[int, int, int]: Query ID, document ID, label.
     """
 
     def __init__(
@@ -315,7 +315,7 @@ class Testset(object):
         """Create a set of documents for the query IDs. For each query, the set contains its pool.
 
         Returns:
-            List[Tuple[int, int, int]]: Tuples containing query ID, document ID and label
+            List[Tuple[int, int, int]]: Tuples containing query ID, document ID and label.
         """
         result = []
         for q_id in self.test_ids:
@@ -332,7 +332,7 @@ class Testset(object):
         """Dataset length.
 
         Returns:
-            int: Number of test items
+            int: Number of test items.
         """
         return len(self.testset)
 
@@ -340,15 +340,15 @@ class Testset(object):
         """Yield all test items.
 
         Yields:
-            Tuple[int, int, int]: Query ID, document ID, label
+            Tuple[int, int, int]: Query ID, document ID, label.
         """
         yield from self.testset
 
     def save(self, dest: Path):
-        """Save the testset.
+        """Save the test set.
 
         Args:
-            dest (Path): File to create
+            dest (Path): File to create.
         """
         num_items = len(self)
         with h5py.File(dest, "w") as fp:
@@ -358,7 +358,7 @@ class Testset(object):
                 "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
             }
             for i, (q_id, doc_id, label) in enumerate(
-                tqdm(self, desc="Saving testset")
+                tqdm(self, desc="Saving test set")
             ):
                 ds["q_ids"][i] = q_id
                 ds["doc_ids"][i] = doc_id
@@ -366,9 +366,9 @@ class Testset(object):
 
 
 class Dataset(object):
-    """Dataset class that provides iterators over train-, val- and testset.
+    """Dataset class that provides iterators over training, validation and test set.
 
-    Validation- and testset contain all documents (corresponding to the query IDs in the set) from
+    Validation and test set contain all documents (corresponding to the query IDs in the set) from
     `pools`, which are to be re-ranked.
 
     Query and document IDs are converted to integers internally. Original IDs can be restored using
@@ -377,17 +377,17 @@ class Dataset(object):
     Query relevances may be any integer. Values greater than zero indicate positive relevance.
 
     Args:
-        queries (Dict[str, str]): Query IDs mapped to queries
-        docs (Dict[str, str]): Document IDs mapped to documents
-        qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance
-        pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents
+        queries (Dict[str, str]): Query IDs mapped to queries.
+        docs (Dict[str, str]): Document IDs mapped to documents.
+        qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance.
+        pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents.
     """
 
     def __init__(
         self,
         queries: Dict[str, str],
         docs: Dict[str, str],
-        qrels: Dict[str, List[Tuple[str, int]]],
+        qrels: Dict[str, Dict[str, int]],
         pools: Dict[str, Set[str]],
     ):
         self.folds = []
@@ -431,9 +431,9 @@ class Dataset(object):
         """Add a new fold.
 
         Args:
-            train_ids (Set[str]): Trainset query IDs
-            val_ids (Set[str]): Validationset query IDs
-            test_ids (Set[str]): Testset query IDs
+            train_ids (Set[str]): Training set query IDs.
+            val_ids (Set[str]): Validation set query IDs.
+            test_ids (Set[str]): Test set query IDs.
         """
         # make sure no IDs are in any two sets
         assert len(train_ids & val_ids) == 0
@@ -453,11 +453,11 @@ class Dataset(object):
         """Pointwise trainingset iterator for a given fold.
 
         Args:
-            fold (int): Fold ID
-            num_negatives (int): Number of negatives per positive
+            fold (int): Fold ID.
+            num_negatives (int): Number of negatives per positive.
 
         Returns:
-            PointwiseTrainingset: The trainingset
+            PointwiseTrainingset: The training set.
         """
         train_ids = self.folds[fold][0]
         return PointwiseTrainingset(train_ids, self.qrels, self.pools, num_negatives)
@@ -468,12 +468,12 @@ class Dataset(object):
         """Pairwise trainingset iterator for a given fold.
 
         Args:
-            fold (int): Fold ID
-            num_negatives (int): Number of negatives per positive
-            query_limit (int): Maximum number of training examples per query
+            fold (int): Fold ID.
+            num_negatives (int): Number of negatives per positive.
+            query_limit (int): Maximum number of training examples per query.
 
         Returns:
-            PairwiseTrainingset: The trainingset
+            PairwiseTrainingset: The training set.
         """
         train_ids = self.folds[fold][0]
         return PairwiseTrainingset(
@@ -484,10 +484,10 @@ class Dataset(object):
         """Validationset iterator for a given fold.
 
         Args:
-            fold (int): Fold ID
+            fold (int): Fold ID.
 
         Returns:
-            Testset: The validationset
+            Testset: The validation set.
         """
         val_ids = self.folds[fold][1]
         return Testset(val_ids, self.qrels, self.pools)
@@ -496,10 +496,10 @@ class Dataset(object):
         """Testset iterator for a given fold.
 
         Args:
-            fold (int): Fold ID
+            fold (int): Fold ID.
 
         Returns:
-            Testset: The testset
+            Testset: The test set.
         """
         test_ids = self.folds[fold][2]
         return Testset(test_ids, self.qrels, self.pools)
@@ -509,7 +509,7 @@ class Dataset(object):
         The original IDs can be recovered through a mapping that is also saved.
 
         Args:
-            dest (Path): The file to create
+            dest (Path): The file to create.
         """
         str_dt = h5py.string_dtype(encoding="utf-8")
         with h5py.File(dest, "w") as fp:
@@ -538,7 +538,7 @@ class Dataset(object):
         Positive values indicate relevant documents. Zero or negative values indicate irrelevant documents.
 
         Args:
-            dest (Path): The file to create
+            dest (Path): The file to create.
         """
         with open(dest, "w", encoding="utf-8", newline="") as fp:
             writer = csv.writer(fp, delimiter="\t")
@@ -555,7 +555,7 @@ class Dataset(object):
         num_neg_pair: Optional[int] = None,
         query_limit_pair: Optional[int] = None,
     ):
-        """Save the collection, QRels and all folds of trainingsets, validationset and testset.
+        """Save the collection, QRels and all folds of training sets, validation set and test set.
 
         Args:
             directory (Path): Where to save the files
@@ -586,7 +586,7 @@ class ParsableDataset(Dataset, abc.ABC):
         """Abstract base class for datasets that are parsed from files.
 
         Args:
-            args (argparse.Namespace): Namespace that contains the arguments
+            args (argparse.Namespace): Namespace that contains the arguments.
         """
         self.directory = Path(args.DIRECTORY)
         queries = self.get_queries()
@@ -602,16 +602,16 @@ class ParsableDataset(Dataset, abc.ABC):
         """Return all queries.
 
         Returns:
-            Dict[str, str]: Query IDs mapped to queries
+            Dict[str, str]: Query IDs mapped to queries.
         """
         pass
 
     @abc.abstractmethod
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents
+        """Return all documents.
 
         Returns:
-            Dict[str, str]: Document IDs mapped to documents
+            Dict[str, str]: Document IDs mapped to documents.
         """
         pass
 
@@ -620,7 +620,7 @@ class ParsableDataset(Dataset, abc.ABC):
         """Return all query relevances.
 
         Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
+            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
         """
         pass
 
@@ -629,7 +629,7 @@ class ParsableDataset(Dataset, abc.ABC):
         """Return all pools.
 
         Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
+            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
         """
         pass
 
@@ -638,7 +638,7 @@ class ParsableDataset(Dataset, abc.ABC):
         """Return all folds.
 
         Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
+            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs.
         """
         pass
 
@@ -647,8 +647,8 @@ class ParsableDataset(Dataset, abc.ABC):
         """Add a dataset-specific subparser with all required arguments.
 
         Args:
-            subparsers (argparse._SubParsersAction): Subparsers to add a parser to
-            name (str): Parser name
+            subparsers (argparse._SubParsersAction): Subparsers to add a parser to.
+            name (str): Parser name.
         """
         sp = subparsers.add_parser(name)
         sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
