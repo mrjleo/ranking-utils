@@ -13,7 +13,7 @@ class ANTIQUE(ParsableDataset):
     def get_queries(self) -> Dict[str, str]:
         queries = {}
         for f_name in ["antique-train-queries.txt", "antique-test-queries.txt"]:
-            f = self.directory / f_name
+            f = self.root_dir / f_name
             with open(f, encoding="utf-8", newline="") as fp:
                 queries.update(
                     {q_id: query for q_id, query in csv.reader(fp, delimiter="\t")}
@@ -21,7 +21,7 @@ class ANTIQUE(ParsableDataset):
         return queries
 
     def get_docs(self) -> Dict[str, str]:
-        doc_file = self.directory / "antique-collection.txt"
+        doc_file = self.root_dir / "antique-collection.txt"
         with open(doc_file, encoding="utf-8", newline="") as fp:
             return {
                 doc_id: doc
@@ -31,7 +31,7 @@ class ANTIQUE(ParsableDataset):
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
         qrels = defaultdict(dict)
         for f_name in ["antique-train.qrel", "antique-test.qrel"]:
-            f = self.directory / f_name
+            f = self.root_dir / f_name
             with open(f, encoding="utf-8") as fp:
                 for line in fp:
                     q_id, _, doc_id, rel = line.split()
@@ -46,7 +46,7 @@ class ANTIQUE(ParsableDataset):
             pools, _ = pickle.load(fp)
 
         # for the testset, we create the pools from the qrels
-        with open(self.directory / "antique-test.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-test.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, doc_id, _ = line.split()
                 pools[q_id].add(doc_id)
@@ -59,13 +59,13 @@ class ANTIQUE(ParsableDataset):
 
         train_ids, test_ids = set(), set()
 
-        with open(self.directory / "antique-train.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-train.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()
                 if q_id not in val_ids:
                     train_ids.add(q_id)
 
-        with open(self.directory / "antique-test.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-test.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()
                 test_ids.add(q_id)

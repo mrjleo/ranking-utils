@@ -65,27 +65,27 @@ class TREC(ParsableDataset):
 
     def get_queries(self) -> Dict[str, str]:
         queries = {}
-        with open(self.directory / "queries.tsv", encoding="utf-8", newline="") as fp:
+        with open(self.root_dir / "queries.tsv", encoding="utf-8", newline="") as fp:
             for q_id, query, _, _ in csv.reader(fp, delimiter="\t"):
                 queries[q_id] = query
         return queries
 
     def get_docs(self) -> Dict[str, str]:
         docs = {}
-        with open(self.directory / "documents.tsv", encoding="utf-8", newline="") as fp:
+        with open(self.root_dir / "documents.tsv", encoding="utf-8", newline="") as fp:
             for doc_id, doc in csv.reader(fp, delimiter="\t"):
                 docs[doc_id] = doc
         return docs
 
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
-        return read_qrels_trec(self.directory / "qrels.tsv")
+        return read_qrels_trec(self.root_dir / "qrels.tsv")
 
     def get_pools(self) -> Dict[str, Set[str]]:
-        return read_top_trec(self.directory / "top.tsv")
+        return read_top_trec(self.root_dir / "top.tsv")
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
         folds = []
-        folds_dir = self.directory / "folds"
+        folds_dir = self.root_dir / "folds"
         for fold_dir in sorted(list(folds_dir.iterdir())):
             with open(folds_dir / fold_dir / "train_ids.txt") as fp:
                 train_ids = set([l.strip() for l in fp])

@@ -13,7 +13,7 @@ class FiQA(ParsableDataset):
     def get_queries(self) -> Dict[str, str]:
         queries = {}
         with open(
-            self.directory / "FiQA_train_question_final.tsv",
+            self.root_dir / "FiQA_train_question_final.tsv",
             encoding="utf-8",
             newline="",
         ) as fp:
@@ -26,7 +26,7 @@ class FiQA(ParsableDataset):
     def get_docs(self) -> Dict[str, str]:
         docs = {}
         with open(
-            self.directory / "FiQA_train_doc_final.tsv", encoding="utf-8", newline=""
+            self.root_dir / "FiQA_train_doc_final.tsv", encoding="utf-8", newline=""
         ) as fp:
             # skip header
             next(fp)
@@ -37,7 +37,7 @@ class FiQA(ParsableDataset):
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
         qrels = defaultdict(dict)
         with open(
-            self.directory / "FiQA_train_question_doc_final.tsv",
+            self.root_dir / "FiQA_train_question_doc_final.tsv",
             encoding="utf-8",
             newline="",
         ) as fp:
@@ -60,7 +60,7 @@ class FiQA(ParsableDataset):
 
         train_ids = set()
         with open(
-            self.directory / "FiQA_train_question_final.tsv",
+            self.root_dir / "FiQA_train_question_final.tsv",
             encoding="utf-8",
             newline="",
         ) as fp:

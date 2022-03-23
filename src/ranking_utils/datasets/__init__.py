@@ -1,5 +1,4 @@
 import abc
-import argparse
 import csv
 import random
 from collections import defaultdict
@@ -36,7 +35,7 @@ class PointwiseTrainingset(object):
         self.trainset = self._create_trainset()
 
     def _create_trainset(self) -> List[Tuple[int, int, int]]:
-        """Create the trainingset as tuples of query ID, document ID, label.
+        """Create the training set as tuples of query ID, document ID, label.
 
         Returns:
             List[Tuple[int, int, int]]: The training set.
@@ -237,7 +236,7 @@ class PairwiseTrainingset(object):
         return result
 
     def _create_trainset(self) -> List[Tuple[int, int, int]]:
-        """Create the trainingset as tuples of query ID, positive document ID, negative document ID.
+        """Create the training set as tuples of query ID, positive document ID, negative document ID.
 
         Returns:
             List[Tuple[int, int, int]]: The training set.
@@ -452,7 +451,7 @@ class Dataset(object):
     def get_pointwise_trainingset(
         self, fold: int, num_negatives: int
     ) -> PointwiseTrainingset:
-        """Pointwise trainingset iterator for a given fold.
+        """Pointwise training set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
@@ -584,18 +583,18 @@ class Dataset(object):
 
 
 class ParsableDataset(Dataset, abc.ABC):
-    def __init__(self, args: argparse.Namespace) -> None:
-        """Abstract base class for datasets that are parsed from files.
+    """Base class for datasets that are parsed from files."""
+
+    def __init__(self, root_dir: Path) -> None:
+        """Constructor.
 
         Args:
-            args (argparse.Namespace): Namespace that contains the arguments.
+            root_dir (Path): Directory that contains all dataset files.
         """
-        self.directory = Path(args.DIRECTORY)
-        queries = self.get_queries()
-        docs = self.get_docs()
-        qrels = self.get_qrels()
-        pools = self.get_pools()
-        super().__init__(queries, docs, qrels, pools)
+        self.root_dir = root_dir
+        super().__init__(
+            self.get_queries(), self.get_docs(), self.get_qrels(), self.get_pools()
+        )
         for f in self.get_folds():
             self.add_fold(*f)
 
@@ -643,14 +642,3 @@ class ParsableDataset(Dataset, abc.ABC):
             Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
         """
         pass
-
-    @staticmethod
-    def add_subparser(subparsers: argparse._SubParsersAction, name: str) -> None:
-        """Add a dataset-specific subparser with all required arguments.
-
-        Args:
-            subparsers (argparse._SubParsersAction): Subparsers to add a parser to.
-            name (str): Parser name.
-        """
-        sp = subparsers.add_parser(name)
-        sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
