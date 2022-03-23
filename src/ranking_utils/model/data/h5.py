@@ -144,6 +144,8 @@ class H5PredictionDataset(PredictionDataset):
 
 
 class H5DataModule(LightningDataModule):
+    """Data module for H5-based datasets."""
+
     def __init__(
         self,
         data_dir: Path,
@@ -153,7 +155,7 @@ class H5DataModule(LightningDataModule):
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         num_workers: int = 16,
     ) -> None:
-        """Constructor
+        """Constructor.
 
         Args:
             data_dir (Path): Root directory of all dataset files.

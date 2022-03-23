@@ -13,12 +13,6 @@ from tqdm import tqdm
 class PointwiseTrainingset(object):
     """A training set iterator for pointwise training.
     Negatives are sampled randomly from the corresponding query pools.
-
-    Args:
-        train_ids (Set[int]): Training set query IDs.
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
-        num_negatives (int): Number of negatives per positive.
     """
 
     def __init__(
@@ -28,6 +22,14 @@ class PointwiseTrainingset(object):
         pools: Dict[int, Set[int]],
         num_negatives: int,
     ) -> None:
+        """Constructor.
+
+        Args:
+            train_ids (Set[int]): Training set query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+            num_negatives (int): Number of negatives per positive.
+        """
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -108,13 +110,6 @@ class PointwiseTrainingset(object):
 class PairwiseTrainingset(object):
     """A training set iterator for pairwise training.
     The number of examples per query is balanced based on its number of positives.
-
-    Args:
-        train_ids (Set[int]): Trainset query IDs.
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
-        num_negatives (int): Number of negatives per positive.
-        query_limit (int): Maximum number of training examples per query.
     """
 
     def __init__(
@@ -125,6 +120,15 @@ class PairwiseTrainingset(object):
         num_negatives: int,
         query_limit: int,
     ) -> None:
+        """Constructor.
+
+        Args:
+            train_ids (Set[int]): Trainset query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+            num_negatives (int): Number of negatives per positive.
+            query_limit (int): Maximum number of training examples per query.
+        """
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -288,16 +292,7 @@ class PairwiseTrainingset(object):
 
 
 class Testset(object):
-    """A test set iterator.
-
-    Args:
-        test_ids (Set[int]): Test set query IDs.
-        qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
-        pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
-
-    Yields:
-        Tuple[int, int, int]: Query ID, document ID, label.
-    """
+    """A test set iterator."""
 
     def __init__(
         self,
@@ -305,6 +300,13 @@ class Testset(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
     ) -> None:
+        """Constructor.
+
+        Args:
+            test_ids (Set[int]): Test set query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+        """
         self.test_ids = test_ids
         self.qrels = qrels
         self.pools = pools
@@ -374,12 +376,6 @@ class Dataset(object):
     `orig_q_ids` and `orig_doc_ids`.
 
     Query relevances may be any integer. Values greater than zero indicate positive relevance.
-
-    Args:
-        queries (Dict[str, str]): Query IDs mapped to queries.
-        docs (Dict[str, str]): Document IDs mapped to documents.
-        qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance.
-        pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents.
     """
 
     def __init__(
@@ -389,6 +385,14 @@ class Dataset(object):
         qrels: Dict[str, Dict[str, int]],
         pools: Dict[str, Set[str]],
     ) -> None:
+        """Constructor.
+
+        Args:
+            queries (Dict[str, str]): Query IDs mapped to queries.
+            docs (Dict[str, str]): Document IDs mapped to documents.
+            qrels (Dict[str, Dict[str, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[str, Set[str]]): Query IDs mapped to top retrieved documents.
+        """
         self.folds = []
 
         # assign unique integer IDs to queries and docs, but keep mappings from and to the original IDs
