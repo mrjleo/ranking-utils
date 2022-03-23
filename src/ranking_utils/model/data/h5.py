@@ -28,7 +28,7 @@ class H5TrainingDataset(TrainingDataset):
         train_file: Path,
         data_processor: DataProcessor,
         mode: TrainingMode,
-    ):
+    ) -> None:
         """Constructor.
 
         Args:
@@ -76,7 +76,7 @@ class H5ValTestDataset(ValTestDataset):
 
     def __init__(
         self, data_file: Path, val_test_file: Path, data_processor: DataProcessor
-    ):
+    ) -> None:
         """Constructor.
 
         Args:
@@ -106,7 +106,9 @@ class H5ValTestDataset(ValTestDataset):
 class H5PredictionDataset(PredictionDataset):
     """Prediction dataset for pre-processed data (hdf5)."""
 
-    def __init__(self, data_file: Path, pred_file: Path, data_processor: DataProcessor):
+    def __init__(
+        self, data_file: Path, pred_file: Path, data_processor: DataProcessor
+    ) -> None:
         """Constructor.
 
         Args:
@@ -150,7 +152,7 @@ class H5DataModule(LightningDataModule):
         batch_size: int,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         num_workers: int = 16,
-    ):
+    ) -> None:
         """Constructor
 
         Args:

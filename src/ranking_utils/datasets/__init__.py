@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 
 class PointwiseTrainingset(object):
-    """A trainingset iterator for pointwise training.
+    """A training set iterator for pointwise training.
     Negatives are sampled randomly from the corresponding query pools.
 
     Args:
@@ -28,7 +28,7 @@ class PointwiseTrainingset(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
         num_negatives: int,
-    ):
+    ) -> None:
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -85,7 +85,7 @@ class PointwiseTrainingset(object):
         """
         yield from self.trainset
 
-    def save(self, dest: Path):
+    def save(self, dest: Path) -> None:
         """Save the pointwise training set.
 
         Args:
@@ -107,7 +107,7 @@ class PointwiseTrainingset(object):
 
 
 class PairwiseTrainingset(object):
-    """A trainingset iterator for pairwise training.
+    """A training set iterator for pairwise training.
     The number of examples per query is balanced based on its number of positives.
 
     Args:
@@ -125,7 +125,7 @@ class PairwiseTrainingset(object):
         pools: Dict[int, Set[int]],
         num_negatives: int,
         query_limit: int,
-    ):
+    ) -> None:
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
@@ -263,7 +263,7 @@ class PairwiseTrainingset(object):
         """
         yield from self.trainset
 
-    def save(self, dest: Path):
+    def save(self, dest: Path) -> None:
         """Save the pairwise training set.
 
         Args:
@@ -289,7 +289,7 @@ class PairwiseTrainingset(object):
 
 
 class Testset(object):
-    """A testset iterator.
+    """A test set iterator.
 
     Args:
         test_ids (Set[int]): Test set query IDs.
@@ -305,7 +305,7 @@ class Testset(object):
         test_ids: Set[int],
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
-    ):
+    ) -> None:
         self.test_ids = test_ids
         self.qrels = qrels
         self.pools = pools
@@ -344,7 +344,7 @@ class Testset(object):
         """
         yield from self.testset
 
-    def save(self, dest: Path):
+    def save(self, dest: Path) -> None:
         """Save the test set.
 
         Args:
@@ -389,7 +389,7 @@ class Dataset(object):
         docs: Dict[str, str],
         qrels: Dict[str, Dict[str, int]],
         pools: Dict[str, Set[str]],
-    ):
+    ) -> None:
         self.folds = []
 
         # assign unique integer IDs to queries and docs, but keep mappings from and to the original IDs
@@ -427,7 +427,9 @@ class Dataset(object):
             }
             self.pools[int_q_id] = int_doc_ids
 
-    def add_fold(self, train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]):
+    def add_fold(
+        self, train_ids: Set[str], val_ids: Set[str], test_ids: Set[str]
+    ) -> None:
         """Add a new fold.
 
         Args:
@@ -465,7 +467,7 @@ class Dataset(object):
     def get_pairwise_trainingset(
         self, fold: int, num_negatives: int, query_limit: int
     ) -> PairwiseTrainingset:
-        """Pairwise trainingset iterator for a given fold.
+        """Pairwise training set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
@@ -481,7 +483,7 @@ class Dataset(object):
         )
 
     def get_valset(self, fold: int) -> Testset:
-        """Validationset iterator for a given fold.
+        """Validation set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
@@ -493,7 +495,7 @@ class Dataset(object):
         return Testset(val_ids, self.qrels, self.pools)
 
     def get_testset(self, fold: int) -> Testset:
-        """Testset iterator for a given fold.
+        """Test set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
@@ -504,7 +506,7 @@ class Dataset(object):
         test_ids = self.folds[fold][2]
         return Testset(test_ids, self.qrels, self.pools)
 
-    def save_collection(self, dest: Path):
+    def save_collection(self, dest: Path) -> None:
         """Save the collection (queries and documents). Use the unique integer IDs for queries and documents.
         The original IDs can be recovered through a mapping that is also saved.
 
@@ -533,7 +535,7 @@ class Dataset(object):
                 ds["docs"][doc_id] = doc
                 ds["orig_doc_ids"][doc_id] = self.orig_doc_ids[doc_id]
 
-    def save_qrels(self, dest: Path):
+    def save_qrels(self, dest: Path) -> None:
         """Save the QRels as a tab-separated file to be used with TREC-eval.
         Positive values indicate relevant documents. Zero or negative values indicate irrelevant documents.
 
@@ -554,7 +556,7 @@ class Dataset(object):
         num_neg_point: Optional[int] = None,
         num_neg_pair: Optional[int] = None,
         query_limit_pair: Optional[int] = None,
-    ):
+    ) -> None:
         """Save the collection, QRels and all folds of training sets, validation set and test set.
 
         Args:
@@ -582,7 +584,7 @@ class Dataset(object):
 
 
 class ParsableDataset(Dataset, abc.ABC):
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace) -> None:
         """Abstract base class for datasets that are parsed from files.
 
         Args:
@@ -643,7 +645,7 @@ class ParsableDataset(Dataset, abc.ABC):
         pass
 
     @staticmethod
-    def add_subparser(subparsers: argparse._SubParsersAction, name: str):
+    def add_subparser(subparsers: argparse._SubParsersAction, name: str) -> None:
         """Add a dataset-specific subparser with all required arguments.
 
         Args:

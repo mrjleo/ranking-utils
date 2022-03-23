@@ -10,7 +10,7 @@ from ranking_utils.model import Ranker
 
 
 class RankingPredictionWriter(BasePredictionWriter):
-    def __init__(self, out_dir: Path):
+    def __init__(self, out_dir: Path) -> None:
         super().__init__("epoch")
         self.out_dir = out_dir
 
@@ -20,14 +20,14 @@ class RankingPredictionWriter(BasePredictionWriter):
         pl_module: Ranker,
         predictions: Sequence[torch.Tensor],
         batch_indices: Sequence[int],
-    ):
+    ) -> None:
         out_file = self.out_dir / f"out_{trainer.global_rank}"
         torch.save(predictions, out_file)
 
 
 def write_trec_eval_file(
     out_file: Path, predictions: Dict[str, Dict[str, float]], name: str
-):
+) -> None:
     """Write the results in a file accepted by the TREC evaluation tool.
 
     Args:

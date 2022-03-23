@@ -31,7 +31,7 @@ class MSMARCOPassage(ParsableDataset):
         self._read_all()
         super().__init__(args)
 
-    def _read_all(self):
+    def _read_all(self) -> None:
         """Read the dataset."""
         # read queries
         self.queries = {}
@@ -135,7 +135,7 @@ class MSMARCODocument(ParsableDataset):
         self._read_queries()
         super().__init__(args)
 
-    def _read_queries(self):
+    def _read_queries(self) -> None:
         """Read the queries and split."""
 
         def _read_queries(fname):

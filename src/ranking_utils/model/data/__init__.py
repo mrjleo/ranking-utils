@@ -56,7 +56,7 @@ class DataProcessor(abc.ABC):
 class TrainingDataset(Dataset, abc.ABC):
     """PyTorch dataset for training of ranking models."""
 
-    def __init__(self, data_processor: DataProcessor, mode: TrainingMode):
+    def __init__(self, data_processor: DataProcessor, mode: TrainingMode) -> None:
         """Constructor.
 
         Args:
@@ -174,7 +174,7 @@ class TrainingDataset(Dataset, abc.ABC):
 class ValTestDataset(Dataset, abc.ABC):
     """PyTorch dataset for validation and testing of ranking models."""
 
-    def __init__(self, data_processor: DataProcessor):
+    def __init__(self, data_processor: DataProcessor) -> None:
         """Constructor.
 
         Args:
@@ -243,7 +243,7 @@ class ValTestDataset(Dataset, abc.ABC):
 class PredictionDataset(Dataset, abc.ABC):
     """PyTorch dataset for prediction using ranking models."""
 
-    def __init__(self, data_processor: DataProcessor):
+    def __init__(self, data_processor: DataProcessor) -> None:
         """Constructor.
 
         Args:

@@ -21,7 +21,7 @@ class InsuranceQA(ParsableDataset):
         self._read_all()
         super().__init__(args)
 
-    def _read_all(self):
+    def _read_all(self) -> None:
         """Read the dataset."""
         vocab_file = self.directory / "vocabulary"
         vocab = {}
@@ -84,7 +84,7 @@ class InsuranceQA(ParsableDataset):
         return [(self.train_ids, self.val_ids, self.test_ids)]
 
     @staticmethod
-    def add_subparser(subparsers: argparse._SubParsersAction, name: str):
+    def add_subparser(subparsers: argparse._SubParsersAction, name: str) -> None:
         sp = subparsers.add_parser(name)
         sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
         sp.add_argument(

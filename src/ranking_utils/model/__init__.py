@@ -47,7 +47,7 @@ class Ranker(LightningModule):
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         loss_margin: float = 1.0,
         hparams: Dict[str, Any] = None,
-    ):
+    ) -> None:
         """Constructor.
 
         Args:
@@ -113,7 +113,7 @@ class Ranker(LightningModule):
         model_batch, q_ids, labels = batch
         return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
 
-    def validation_step_end(self, step_results: Dict[str, torch.Tensor]):
+    def validation_step_end(self, step_results: Dict[str, torch.Tensor]) -> None:
         """Update the validation metrics.
 
         Args:
@@ -125,7 +125,9 @@ class Ranker(LightningModule):
             indexes=step_results["q_ids"],
         )
 
-    def validation_epoch_end(self, val_results: Iterable[Dict[str, torch.Tensor]]):
+    def validation_epoch_end(
+        self, val_results: Iterable[Dict[str, torch.Tensor]]
+    ) -> None:
         """Compute validation metrics.
 
         Args:
@@ -148,7 +150,7 @@ class Ranker(LightningModule):
         model_batch, q_ids, labels = batch
         return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
 
-    def test_step_end(self, step_results: Dict[str, torch.Tensor]):
+    def test_step_end(self, step_results: Dict[str, torch.Tensor]) -> None:
         """Update the test metrics.
 
         Args:
@@ -160,7 +162,7 @@ class Ranker(LightningModule):
             indexes=step_results["q_ids"],
         )
 
-    def test_epoch_end(self, test_results: Iterable[Dict[str, torch.Tensor]]):
+    def test_epoch_end(self, test_results: Iterable[Dict[str, torch.Tensor]]) -> None:
         """Compute test metrics.
 
         Args:
