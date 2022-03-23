@@ -69,53 +69,22 @@ class InsuranceQA(ParsableDataset):
         self.train_ids, self.val_ids, self.test_ids = sets
 
     def get_queries(self) -> Dict[str, str]:
-        """Return all queries.
-
-        Returns:
-            Dict[str, str]: Query IDs mapped to queries.
-        """
         return self.queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents.
-
-        Returns:
-            Dict[str, str]: Document IDs mapped to documents.
-        """
         return self.docs
 
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
-        """Return all query relevances.
-
-        Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance.
-        """
         return self.qrels
 
     def get_pools(self) -> Dict[str, Set[str]]:
-        """Return all pools.
-
-        Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents.
-        """
         return self.pools
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
-        """Return all folds.
-
-        Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of training, validation and test query IDs.
-        """
         return [(self.train_ids, self.val_ids, self.test_ids)]
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction, name: str):
-        """Add a dataset-specific subparser with all required arguments.
-
-        Args:
-            subparsers (argparse._SubParsersAction): Subparsers to add a parser to.
-            name (str): Parser name.
-        """
         sp = subparsers.add_parser(name)
         sp.add_argument("DIRECTORY", help="Dataset directory containing all files")
         sp.add_argument(
