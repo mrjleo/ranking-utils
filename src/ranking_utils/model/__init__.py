@@ -46,21 +46,17 @@ class Ranker(LightningModule):
         self,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         loss_margin: float = 1.0,
-        hparams: Dict[str, Any] = None,
     ) -> None:
         """Constructor.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
             loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
-            hparams (Dict[str, Any], optional): Model hyperparameters. Defaults to None.
         """
         super().__init__()
         self.training_mode = training_mode
         self.loss_margin = loss_margin
         self.bce = torch.nn.BCEWithLogitsLoss()
-        if hparams is not None:
-            self.save_hyperparameters(hparams)
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
