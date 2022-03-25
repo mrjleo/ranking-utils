@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import h5py
 from pytorch_lightning import LightningDataModule
@@ -148,7 +148,7 @@ class H5DataModule(LightningDataModule):
 
     def __init__(
         self,
-        data_dir: Path,
+        data_dir: Union[Path, str],
         fold_name: str,
         data_processor: DataProcessor,
         batch_size: int,
@@ -158,7 +158,7 @@ class H5DataModule(LightningDataModule):
         """Constructor.
 
         Args:
-            data_dir (Path): Root directory of all dataset files.
+            data_dir (Union[Path, str]): Root directory of all dataset files.
             fold_name (str): Name of the fold (within `data_dir`) to use for training.
             data_processor (DataProcessor): Model-specific data processor.
             batch_size (int): The batch size to use.
@@ -166,6 +166,9 @@ class H5DataModule(LightningDataModule):
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
         """
         super().__init__()
+
+        if type(data_dir) != Path:
+            data_dir = Path(data_dir)
 
         self.data_file = data_dir / "data.h5"
         self.train_file_pointwise = data_dir / fold_name / "train_pointwise.h5"

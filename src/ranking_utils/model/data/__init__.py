@@ -318,4 +318,3 @@ class PredictionDataset(Dataset, abc.ABC):
             torch.IntTensor(indices),
             self.data_processor.get_model_batch(model_inputs),
         )
-
