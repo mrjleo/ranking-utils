@@ -12,7 +12,6 @@ from ranking_utils.datasets.insuranceqa import InsuranceQA
 from ranking_utils.datasets.msmarco import MSMARCODocument, MSMARCOPassage
 from ranking_utils.datasets.trec import TREC
 
-
 DATASETS = {
     c.__name__.lower(): c
     for c in [ANTIQUE, FiQA, InsuranceQA, MSMARCOPassage, MSMARCODocument, TREC]

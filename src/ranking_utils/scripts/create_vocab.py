@@ -1,31 +1,31 @@
 #! /usr/bin/env python3
 
 
-import pickle
 import argparse
-from itertools import chain
+import pickle
 from collections import Counter
+from itertools import chain
 
 import h5py
 import nltk
 import torch
-from tqdm import tqdm
-from torchtext.legacy.vocab import Vocab
 from pytorch_lightning import seed_everything
+from torchtext.legacy.vocab import Vocab
+from tqdm import tqdm
 
 
 def main():
     ap = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    ap.add_argument("DATA_FILE", help="File that holds the queries and documents")
-    ap.add_argument("--max_size", type=int, help="Maximum vocabulary size")
-    ap.add_argument("--cache", help="Torchtext cache")
+    ap.add_argument("DATA_FILE", help="File that holds the queries and documents.")
+    ap.add_argument("--max_size", type=int, help="Maximum vocabulary size.")
+    ap.add_argument("--cache", help="Torchtext cache directory.")
     ap.add_argument(
-        "--vectors", default="glove.840B.300d", help="Pre-trained vectors (torchtext)"
+        "--vectors", default="glove.840B.300d", help="Pre-trained vectors (torchtext)."
     )
     ap.add_argument(
-        "--out_file", default="vocab.pkl", help="Where to save the vocabulary"
+        "--out_file", default="vocab.pkl", help="Where to save the vocabulary."
     )
-    ap.add_argument("--random_seed", type=int, default=123, help="Random seed")
+    ap.add_argument("--random_seed", type=int, default=123, help="Random seed.")
     args = ap.parse_args()
 
     nltk.download("punkt")

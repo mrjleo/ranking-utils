@@ -107,18 +107,21 @@ class H5PredictionDataset(PredictionDataset):
     """Prediction dataset for pre-processed data (hdf5)."""
 
     def __init__(
-        self, data_file: Path, pred_file: Path, data_processor: DataProcessor
+        self,
+        data_file: Union[Path, str],
+        pred_file: Union[Path, str],
+        data_processor: DataProcessor,
     ) -> None:
         """Constructor.
 
         Args:
-            data_file (Path): File that contains the corpus (.h5).
-            pred_file (Path): File that contains the prediction set (.h5).
+            data_file (Union[Path, str]): File that contains the corpus (.h5).
+            pred_file (Union[Path, str]): File that contains the prediction set (.h5).
             data_processor (DataProcessor): A model-specific data processor.
         """
         super().__init__(data_processor)
-        self.data_file = data_file
-        self.pred_file = pred_file
+        self.data_file = Path(data_file)
+        self.pred_file = Path(pred_file)
 
     def _num_instances(self) -> int:
         with h5py.File(self.pred_file, "r") as fp:
@@ -187,13 +190,13 @@ class H5DataModule(LightningDataModule):
         Returns:
             DataLoader: The DataLoader.
         """
-        train_file = (
+        ds = H5TrainingDataset(
+            self.data_file,
             self.train_file_pointwise
             if self.training_mode == TrainingMode.POINTWISE
-            else self.train_file_pairwise
-        )
-        ds = H5TrainingDataset(
-            self.data_file, train_file, self.data_processor, self.training_mode
+            else self.train_file_pairwise,
+            self.data_processor,
+            self.training_mode,
         )
         return DataLoader(
             ds,
