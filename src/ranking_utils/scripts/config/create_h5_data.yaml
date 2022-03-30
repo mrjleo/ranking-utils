@@ -3,4 +3,5 @@ defaults:
   - dataset: ???
 
 random_seed: 123
-num_negatives: 1
+num_training_negatives: 1
+balance_training_pairs: False

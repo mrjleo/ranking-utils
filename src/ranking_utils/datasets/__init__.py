@@ -11,9 +11,7 @@ from tqdm import tqdm
 
 
 class Trainingset(object):
-    """A training set iterator for (query, positive document, negative document) training pairs.
-    The number of examples per query is balanced based on its number of positives.
-    """
+    """A training set iterator for (query, positive document, negative document) training pairs."""
 
     def __init__(
         self,
@@ -21,6 +19,7 @@ class Trainingset(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
         num_negatives: int,
+        balance: bool,
     ) -> None:
         """Constructor.
 
@@ -29,13 +28,16 @@ class Trainingset(object):
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
             num_negatives (int): Number of negatives per positive.
+            balance (bool): Whether to balance the number of pairs per query based on its number of positives.
         """
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
         self.num_negatives = num_negatives
+        self.balance = balance
 
-        self.percentiles = self._compute_percentiles()
+        if balance:
+            self.percentiles = self._compute_percentiles()
         self.trainset = self._create_trainset()
 
     def _get_docs_by_relevance(self, q_id: int) -> Dict[int, Set[int]]:
@@ -114,9 +116,12 @@ class Trainingset(object):
         docs = self._get_docs_by_relevance(q_id)
         result = []
 
-        # balance the number of pairs for this query, based on the total number of positives
-        factor = self._get_balancing_factor(q_id)
-        num_negatives = int(self.num_negatives * factor)
+        if self.balance:
+            # balance the number of pairs for this query, based on the total number of positives
+            factor = self._get_balancing_factor(q_id)
+            num_negatives = int(self.num_negatives * factor)
+        else:
+            num_negatives = self.num_negatives
 
         # available relevances sorted in ascending order
         rels = sorted(docs.keys())
@@ -346,18 +351,21 @@ class Dataset(object):
 
         self.folds.append((train_ids, val_ids, test_ids))
 
-    def get_trainingset(self, fold: int, num_negatives: int) -> Trainingset:
+    def get_trainingset(
+        self, fold: int, num_negatives: int, balance: bool
+    ) -> Trainingset:
         """Training set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
             num_negatives (int): Number of negatives per positive.
+            balance (bool): Whether to balance the number of pairs per query based on its number of positives.
 
         Returns:
             Trainingset: The training set.
         """
         train_ids = self.folds[fold][0]
-        return Trainingset(train_ids, self.qrels, self.pools, num_negatives)
+        return Trainingset(train_ids, self.qrels, self.pools, num_negatives, balance)
 
     def get_valset(self, fold: int) -> ValTestset:
         """Validation set iterator for a given fold.
@@ -427,20 +435,25 @@ class Dataset(object):
                     orig_doc_id = self.orig_doc_ids[doc_id]
                     writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
-    def save(self, directory: Path, num_negatives: int) -> None:
-        """Save the collection, QRels and all folds of training sets, validation set and test set.
+    def save(
+        self, target_dir: Path, num_training_negatives: int, balance: bool
+    ) -> None:
+        """Save the collection, QRels and all folds of training, validation and test set.
 
         Args:
-            directory (Path): Where to save the files
-            num_negatives (int): Number of negatives per positive.
+            target_dir (Path): Where to save the files
+            num_training_negatives (int): Number of negatives per positive.
+            balance (bool): Whether to balance the number of training pairs per query based on its number of positives.
         """
-        directory.mkdir(parents=True, exist_ok=True)
-        self.save_collection(directory / "data.h5")
-        self.save_qrels(directory / "qrels.tsv")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        self.save_collection(target_dir / "data.h5")
+        self.save_qrels(target_dir / "qrels.tsv")
         for fold in range(len(self.folds)):
-            fold_dir = directory / f"fold_{fold}"
+            fold_dir = target_dir / f"fold_{fold}"
             fold_dir.mkdir(parents=True, exist_ok=True)
-            self.get_trainingset(fold, num_negatives).save(fold_dir / "train.h5")
+            self.get_trainingset(fold, num_training_negatives, balance).save(
+                fold_dir / "train.h5"
+            )
             self.get_valset(fold).save(fold_dir / "val.h5")
             self.get_testset(fold).save(fold_dir / "test.h5")
 
