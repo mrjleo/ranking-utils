@@ -42,21 +42,17 @@ class H5TrainingDataset(TrainingDataset):
         self.train_file = train_file
 
     def _num_pointwise_instances(self) -> int:
-        with h5py.File(self.train_file, "r") as fp:
-            return len(fp["q_ids"])
+        return self._num_pairwise_instances() * 2
 
     def _num_pairwise_instances(self) -> int:
         with h5py.File(self.train_file, "r") as fp:
             return len(fp["q_ids"])
 
     def _get_pointwise_instance(self, index: int) -> PointwiseTrainingInstance:
-        with h5py.File(self.train_file, "r") as fp:
-            q_id = fp["q_ids"][index]
-            doc_id = fp["doc_ids"][index]
-            label = fp["labels"][index]
-        with h5py.File(self.data_file, "r") as fp:
-            query = fp["queries"].asstr()[q_id]
-            doc = fp["docs"].asstr()[doc_id]
+        pair_index = int(index / 2)
+        label = index % 2
+        query, pos_doc, neg_doc = self._get_pairwise_instance(pair_index)
+        doc = neg_doc if label == 0 else pos_doc
         return query, doc, label
 
     def _get_pairwise_instance(self, index: int) -> PairwiseTrainingInstance:
@@ -174,8 +170,7 @@ class H5DataModule(LightningDataModule):
             data_dir = Path(data_dir)
 
         self.data_file = data_dir / "data.h5"
-        self.train_file_pointwise = data_dir / fold_name / "train_pointwise.h5"
-        self.train_file_pairwise = data_dir / fold_name / "train_pairwise.h5"
+        self.train_file = data_dir / fold_name / "train_pairwise.h5"
         self.val_file = data_dir / fold_name / "val.h5"
         self.test_file = data_dir / fold_name / "test.h5"
 
@@ -191,12 +186,7 @@ class H5DataModule(LightningDataModule):
             DataLoader: The DataLoader.
         """
         ds = H5TrainingDataset(
-            self.data_file,
-            self.train_file_pointwise
-            if self.training_mode == TrainingMode.POINTWISE
-            else self.train_file_pairwise,
-            self.data_processor,
-            self.training_mode,
+            self.data_file, self.train_file, self.data_processor, self.training_mode,
         )
         return DataLoader(
             ds,

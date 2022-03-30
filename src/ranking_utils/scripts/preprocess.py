@@ -28,12 +28,6 @@ def main():
         "ROOT_DIR", type=Path, help="Directory that contains all dataset files."
     )
     ap.add_argument(
-        "--num_neg_point",
-        type=int,
-        default=1,
-        help="Number of negatives per positive (pointwise training).",
-    )
-    ap.add_argument(
         "--num_neg_pair",
         type=int,
         default=1,
@@ -53,7 +47,7 @@ def main():
         seed_everything(args.random_seed)
 
     DATASETS[args.DATASET](args.ROOT_DIR).save(
-        args.SAVE, args.num_neg_point, args.num_neg_pair, args.query_limit_pair
+        args.SAVE, args.num_neg_pair, args.query_limit_pair
     )
 
 
