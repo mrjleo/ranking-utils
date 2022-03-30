@@ -36,13 +36,13 @@ def main():
     ap.add_argument(
         "--num_neg_pair",
         type=int,
-        default=16,
+        default=1,
         help="Number of negatives per positive (pairwise training).",
     )
     ap.add_argument(
         "--query_limit_pair",
         type=int,
-        default=64,
+        default=100,
         help="Maximum number of training examples per query (pairwise training).",
     )
     ap.add_argument("--random_seed", type=int, default=123, help="Random seed.")
