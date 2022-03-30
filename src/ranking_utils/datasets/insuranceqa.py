@@ -2,7 +2,7 @@ import csv
 import gzip
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple, Union
 
 from ranking_utils.datasets import ParsableDataset
 
@@ -10,12 +10,12 @@ from ranking_utils.datasets import ParsableDataset
 class InsuranceQAV2(ParsableDataset):
     """InsuranceQA (v2) dataset class."""
 
-    def __init__(self, root_dir: Path, pool_size: int = 100):
+    def __init__(self, root_dir: Union[str, Path], pool_size: int):
         """Constructor.
 
         Args:
-            root_dir (Path): Directory that contains all dataset files.
-            pool_size (int): Number of documents per query (100, 500, 1000, 1500). Defaults to 100.
+            root_dir (Union[str, Path]): Directory that contains all dataset files.
+            pool_size (int): Number of documents per query (100, 500, 1000, 1500).
         """
         assert pool_size in (100, 500, 1000, 1500)
         self.pool_size = pool_size

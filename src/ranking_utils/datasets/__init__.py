@@ -3,7 +3,7 @@ import csv
 import random
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import h5py
 import numpy as np
@@ -448,13 +448,13 @@ class Dataset(object):
 class ParsableDataset(Dataset, abc.ABC):
     """Base class for datasets that are parsed from files."""
 
-    def __init__(self, root_dir: Path) -> None:
+    def __init__(self, root_dir: Union[str, Path]) -> None:
         """Constructor.
 
         Args:
-            root_dir (Path): Directory that contains all dataset files.
+            root_dir (Union[str, Path]): Directory that contains all dataset files.
         """
-        self._root_dir = root_dir
+        self._root_dir = Path(root_dir)
 
         for f in self.required_files():
             if not (self.root_dir / f).is_file():

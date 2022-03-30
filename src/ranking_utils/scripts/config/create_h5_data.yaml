@@ -1,0 +1,6 @@
+defaults:
+  - _self_
+  - dataset: ???
+
+random_seed: 123
+num_negatives: 1
