@@ -3,7 +3,7 @@ import csv
 import random
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 import h5py
 import numpy as np
@@ -123,7 +123,7 @@ class PairwiseTrainingset(object):
         """Constructor.
 
         Args:
-            train_ids (Set[int]): Trainset query IDs.
+            train_ids (Set[int]): Training set query IDs.
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
             num_negatives (int): Number of negatives per positive.
@@ -291,26 +291,26 @@ class PairwiseTrainingset(object):
                 ds["neg_doc_ids"][i] = neg_doc_id
 
 
-class Testset(object):
-    """A test set iterator."""
+class ValTestset(object):
+    """A validation/test set iterator."""
 
     def __init__(
         self,
-        test_ids: Set[int],
+        ids: Set[int],
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
     ) -> None:
         """Constructor.
 
         Args:
-            test_ids (Set[int]): Test set query IDs.
+            ids (Set[int]): Validation/test set query IDs.
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
         """
-        self.test_ids = test_ids
+        self.ids = ids
         self.qrels = qrels
         self.pools = pools
-        self.testset = self._create_testset()
+        self.items = self._create_testset()
 
     def _create_testset(self) -> List[Tuple[int, int, int]]:
         """Create a set of documents for the query IDs. For each query, the set contains its pool.
@@ -319,13 +319,13 @@ class Testset(object):
             List[Tuple[int, int, int]]: Tuples containing query ID, document ID and label.
         """
         result = []
-        for q_id in self.test_ids:
+        for q_id in self.ids:
             for doc_id in self.pools[q_id]:
                 label = 1 if self.qrels[q_id].get(doc_id, 0) > 0 else 0
                 result.append((q_id, doc_id, label))
 
         for q_id, _, _ in result:
-            assert q_id in self.test_ids
+            assert q_id in self.ids
 
         return result
 
@@ -333,20 +333,20 @@ class Testset(object):
         """Dataset length.
 
         Returns:
-            int: Number of test items.
+            int: Number of validation/test items.
         """
-        return len(self.testset)
+        return len(self.items)
 
     def __iter__(self) -> Iterable[Tuple[int, int, int]]:
-        """Yield all test items.
+        """Yield all validation/test items.
 
         Yields:
             Tuple[int, int, int]: Query ID, document ID, label.
         """
-        yield from self.testset
+        yield from self.items
 
     def save(self, dest: Path) -> None:
-        """Save the test set.
+        """Save the validation/test set.
 
         Args:
             dest (Path): File to create.
@@ -359,7 +359,7 @@ class Testset(object):
                 "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
             }
             for i, (q_id, doc_id, label) in enumerate(
-                tqdm(self, desc="Saving test set")
+                tqdm(self, desc="Saving validation/test set")
             ):
                 ds["q_ids"][i] = q_id
                 ds["doc_ids"][i] = doc_id
@@ -485,29 +485,29 @@ class Dataset(object):
             train_ids, self.qrels, self.pools, num_negatives, query_limit
         )
 
-    def get_valset(self, fold: int) -> Testset:
+    def get_valset(self, fold: int) -> ValTestset:
         """Validation set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
 
         Returns:
-            Testset: The validation set.
+            ValTestset: The validation set.
         """
         val_ids = self.folds[fold][1]
-        return Testset(val_ids, self.qrels, self.pools)
+        return ValTestset(val_ids, self.qrels, self.pools)
 
-    def get_testset(self, fold: int) -> Testset:
+    def get_testset(self, fold: int) -> ValTestset:
         """Test set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
 
         Returns:
-            Testset: The test set.
+            ValTestset: The test set.
         """
         test_ids = self.folds[fold][2]
-        return Testset(test_ids, self.qrels, self.pools)
+        return ValTestset(test_ids, self.qrels, self.pools)
 
     def save_collection(self, dest: Path) -> None:
         """Save the collection (queries and documents). Use the unique integer IDs for queries and documents.
