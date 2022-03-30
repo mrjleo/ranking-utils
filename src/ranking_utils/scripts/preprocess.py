@@ -28,16 +28,7 @@ def main():
         "ROOT_DIR", type=Path, help="Directory that contains all dataset files."
     )
     ap.add_argument(
-        "--num_neg_pair",
-        type=int,
-        default=1,
-        help="Number of negatives per positive (pairwise training).",
-    )
-    ap.add_argument(
-        "--query_limit_pair",
-        type=int,
-        default=100,
-        help="Maximum number of training examples per query (pairwise training).",
+        "--num_neg", type=int, default=1, help="Number of negatives per positive.",
     )
     ap.add_argument("--random_seed", type=int, default=123, help="Random seed.")
     args = ap.parse_args()
@@ -46,9 +37,7 @@ def main():
     if args.random_seed:
         seed_everything(args.random_seed)
 
-    DATASETS[args.DATASET](args.ROOT_DIR).save(
-        args.SAVE, args.num_neg_pair, args.query_limit_pair
-    )
+    DATASETS[args.DATASET](args.ROOT_DIR).save(args.SAVE, args.num_neg)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,6 @@ class Trainingset(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
         num_negatives: int,
-        query_limit: int,
     ) -> None:
         """Constructor.
 
@@ -30,13 +29,11 @@ class Trainingset(object):
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
             num_negatives (int): Number of negatives per positive.
-            query_limit (int): Maximum number of training examples per query.
         """
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
         self.num_negatives = num_negatives
-        self.query_limit = query_limit
 
         self.percentiles = self._compute_percentiles()
         self.trainset = self._create_trainset()
@@ -106,6 +103,7 @@ class Trainingset(object):
 
     def _get_triples(self, q_id: int) -> List[Tuple[int, int, int]]:
         """Return all training triples for a query as tuples of query ID, positive document ID, negative document ID.
+        Adapted from https://github.com/ucasir/NPRF/blob/6387db2fce30ee2b9f659ad1addfe949e6349f85/utils/pair_generator.py#L100.
 
         Args:
             q_id (int): The query ID.
@@ -119,7 +117,6 @@ class Trainingset(object):
         # balance the number of pairs for this query, based on the total number of positives
         factor = self._get_balancing_factor(q_id)
         num_negatives = int(self.num_negatives * factor)
-        query_limit = int(self.query_limit * factor)
 
         # available relevances sorted in ascending order
         rels = sorted(docs.keys())
@@ -134,12 +131,6 @@ class Trainingset(object):
                 result.extend(
                     zip([q_id] * sample_size, [positive] * sample_size, negatives)
                 )
-
-        for q_id, _, _ in result:
-            assert q_id in self.train_ids
-
-        if len(result) > query_limit:
-            return random.sample(result, query_limit)
         return result
 
     def _create_trainset(self) -> List[Tuple[int, int, int]]:
@@ -355,23 +346,18 @@ class Dataset(object):
 
         self.folds.append((train_ids, val_ids, test_ids))
 
-    def get_trainingset(
-        self, fold: int, num_negatives: int, query_limit: int
-    ) -> Trainingset:
+    def get_trainingset(self, fold: int, num_negatives: int) -> Trainingset:
         """Training set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
             num_negatives (int): Number of negatives per positive.
-            query_limit (int): Maximum number of training examples per query.
 
         Returns:
             Trainingset: The training set.
         """
         train_ids = self.folds[fold][0]
-        return Trainingset(
-            train_ids, self.qrels, self.pools, num_negatives, query_limit
-        )
+        return Trainingset(train_ids, self.qrels, self.pools, num_negatives)
 
     def get_valset(self, fold: int) -> ValTestset:
         """Validation set iterator for a given fold.
@@ -441,13 +427,12 @@ class Dataset(object):
                     orig_doc_id = self.orig_doc_ids[doc_id]
                     writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
-    def save(self, directory: Path, num_negatives: int, query_limit: int,) -> None:
+    def save(self, directory: Path, num_negatives: int) -> None:
         """Save the collection, QRels and all folds of training sets, validation set and test set.
 
         Args:
             directory (Path): Where to save the files
             num_negatives (int): Number of negatives per positive.
-            query_limit (int): Maximum number of training examples per query.
         """
         directory.mkdir(parents=True, exist_ok=True)
         self.save_collection(directory / "data.h5")
@@ -455,9 +440,7 @@ class Dataset(object):
         for fold in range(len(self.folds)):
             fold_dir = directory / f"fold_{fold}"
             fold_dir.mkdir(parents=True, exist_ok=True)
-            self.get_trainingset(fold, num_negatives, query_limit).save(
-                fold_dir / "train.h5"
-            )
+            self.get_trainingset(fold, num_negatives).save(fold_dir / "train.h5")
             self.get_valset(fold).save(fold_dir / "val.h5")
             self.get_testset(fold).save(fold_dir / "test.h5")
 
