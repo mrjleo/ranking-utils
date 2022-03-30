@@ -16,18 +16,13 @@ csv.field_size_limit(sys.maxsize)
 LOGGER = logging.getLogger(__name__)
 
 
-class MSMARCOPassage(ParsableDataset):
+class MSMARCOV1Passage(ParsableDataset):
     """MS MARCO (v1) passage ranking dataset class. Includes TREC-DL 2019 and 2020 test sets.
     In the passage dataset, a relevance of 1 is considered irrelevant. Thus, we subtract 1 for each
     relevance while reading the QRels.
     """
 
-    def __init__(self, root_dir: Path):
-        """Constructor.
-
-        Args:
-            root_dir (Path): Directory that contains all dataset files.
-        """
+    def prepare_data(self) -> None:
         # read queries
         self.queries = {}
         for f_name, num_lines in [
@@ -36,7 +31,7 @@ class MSMARCOPassage(ParsableDataset):
             ("msmarco-test2019-queries.tsv", 200),
             ("msmarco-test2020-queries.tsv", 200),
         ]:
-            f = root_dir / f_name
+            f = self.root_dir / f_name
             LOGGER.info(f"reading {f}")
             with open(f, encoding="utf-8", newline="") as fp:
                 reader = csv.reader(fp, delimiter="\t")
@@ -45,7 +40,7 @@ class MSMARCOPassage(ParsableDataset):
 
         # read documents
         self.docs = {}
-        f = root_dir / "collection.tsv"
+        f = self.root_dir / "collection.tsv"
         LOGGER.info(f"reading {f}")
         with open(f, encoding="utf-8", newline="") as fp:
             reader = csv.reader(fp, delimiter="\t")
@@ -59,7 +54,7 @@ class MSMARCOPassage(ParsableDataset):
             ("qrels.train.tsv", 532761),
             ("qrels.dev.tsv", 59273),
         ]:
-            f = root_dir / f_name
+            f = self.root_dir / f_name
             LOGGER.info(f"reading {f}")
             with open(f, encoding="utf-8", newline="") as fp:
                 reader = csv.reader(fp, delimiter="\t")
@@ -69,7 +64,7 @@ class MSMARCOPassage(ParsableDataset):
 
         # TREC qrels have a different format
         for f_name in ["2019qrels-pass.txt", "2020qrels-pass.txt"]:
-            f = root_dir / f_name
+            f = self.root_dir / f_name
             LOGGER.info(f"reading {f}")
             with open(f, encoding="utf-8", newline="") as fp:
                 for q_id, _, doc_id, rel in csv.reader(fp, delimiter=" "):
@@ -85,7 +80,7 @@ class MSMARCOPassage(ParsableDataset):
             ("top1000.dev.tsv", 6668967),
             ("top1000.train.txt", 478016942),
         ]:
-            f = root_dir / f_name
+            f = self.root_dir / f_name
             LOGGER.info(f"reading {f}")
             with open(f, encoding="utf-8", newline="") as fp:
                 reader = csv.reader(fp, delimiter="\t")
@@ -98,8 +93,6 @@ class MSMARCOPassage(ParsableDataset):
         self.val_ids = q_ids["qrels.dev.tsv"] & all_ids
         self.test_ids_2019 = q_ids["2019qrels-pass.txt"] & all_ids
         self.test_ids_2020 = q_ids["2020qrels-pass.txt"] & all_ids
-
-        super().__init__(root_dir)
 
     def get_queries(self) -> Dict[str, str]:
         return self.queries
@@ -120,10 +113,10 @@ class MSMARCOPassage(ParsableDataset):
         ]
 
 
-class MSMARCODocument(ParsableDataset):
+class MSMARCOV1Document(ParsableDataset):
     """MS MARCO (v1) document ranking dataset class. Includes TREC-DL 2019 and 2020 test sets."""
 
-    def __init__(self, root_dir: Path):
+    def prepare_data(self) -> None:
         def _read_queries(fname):
             result = {}
             LOGGER.info(f"reading {fname}")
@@ -132,10 +125,14 @@ class MSMARCODocument(ParsableDataset):
                     result[q_id] = query
             return result
 
-        train_queries = _read_queries(root_dir / "msmarco-doctrain-queries.tsv")
-        dev_queries = _read_queries(root_dir / "msmarco-docdev-queries.tsv")
-        test_queries_2019 = _read_queries(root_dir / "msmarco-test2019-queries.tsv")
-        test_queries_2020 = _read_queries(root_dir / "msmarco-test2020-queries.tsv")
+        train_queries = _read_queries(self.root_dir / "msmarco-doctrain-queries.tsv")
+        dev_queries = _read_queries(self.root_dir / "msmarco-docdev-queries.tsv")
+        test_queries_2019 = _read_queries(
+            self.root_dir / "msmarco-test2019-queries.tsv"
+        )
+        test_queries_2020 = _read_queries(
+            self.root_dir / "msmarco-test2020-queries.tsv"
+        )
 
         self.queries = {}
         self.queries.update(train_queries)
@@ -147,8 +144,6 @@ class MSMARCODocument(ParsableDataset):
         self.val_ids = set(dev_queries.keys())
         self.test_ids_2019 = set(test_queries_2019.keys())
         self.test_ids_2020 = set(test_queries_2020.keys())
-
-        super().__init__(root_dir)
 
     def get_queries(self) -> Dict[str, str]:
         return self.queries

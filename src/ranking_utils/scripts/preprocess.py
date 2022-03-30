@@ -8,13 +8,13 @@ from pathlib import Path
 from pytorch_lightning import seed_everything
 from ranking_utils.datasets.antique import ANTIQUE
 from ranking_utils.datasets.fiqa import FiQA
-from ranking_utils.datasets.insuranceqa import InsuranceQA
-from ranking_utils.datasets.msmarco import MSMARCODocument, MSMARCOPassage
+from ranking_utils.datasets.insuranceqa import InsuranceQAV2
+from ranking_utils.datasets.msmarco import MSMARCOV1Document, MSMARCOV1Passage
 from ranking_utils.datasets.trec import TREC
 
 DATASETS = {
     c.__name__.lower(): c
-    for c in [ANTIQUE, FiQA, InsuranceQA, MSMARCOPassage, MSMARCODocument, TREC]
+    for c in [ANTIQUE, FiQA, InsuranceQAV2, MSMARCOV1Document, MSMARCOV1Passage, TREC]
 }
 
 

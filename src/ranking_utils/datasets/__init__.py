@@ -595,12 +595,26 @@ class ParsableDataset(Dataset, abc.ABC):
         Args:
             root_dir (Path): Directory that contains all dataset files.
         """
-        self.root_dir = root_dir
+        self._root_dir = root_dir
+        self.prepare_data()
         super().__init__(
             self.get_queries(), self.get_docs(), self.get_qrels(), self.get_pools()
         )
         for f in self.get_folds():
             self.add_fold(*f)
+
+    @property
+    def root_dir(self) -> Path:
+        """Return the dataset director.
+
+        Returns:
+            Path: The dataset root directory.
+        """
+        return self._root_dir
+
+    def prepare_data(self) -> None:
+        """This function is called in the beginning to do any preparatory work."""
+        pass
 
     @abc.abstractmethod
     def get_queries(self) -> Dict[str, str]:
