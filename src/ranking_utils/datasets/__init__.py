@@ -596,6 +596,11 @@ class ParsableDataset(Dataset, abc.ABC):
             root_dir (Path): Directory that contains all dataset files.
         """
         self._root_dir = root_dir
+
+        for f in self.required_files():
+            if not (self.root_dir / f).is_file():
+                raise RuntimeError(f"missing file: {f}")
+
         self.prepare_data()
         super().__init__(
             self.get_queries(), self.get_docs(), self.get_qrels(), self.get_pools()
@@ -603,9 +608,18 @@ class ParsableDataset(Dataset, abc.ABC):
         for f in self.get_folds():
             self.add_fold(*f)
 
+    @abc.abstractmethod
+    def required_files(self) -> Iterable[Path]:
+        """List all files that are required to parse this dataset. If a file is missing, an error is raised.
+
+        Returns:
+            Iterable[Path]: The requried files (relative paths).
+        """
+        pass
+
     @property
     def root_dir(self) -> Path:
-        """Return the dataset director.
+        """Return the dataset directory.
 
         Returns:
             Path: The dataset root directory.

@@ -2,13 +2,20 @@ import csv
 import pickle
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 from ranking_utils.datasets import ParsableDataset
 
 
 class FiQA(ParsableDataset):
     """FiQA dataset class."""
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("FiQA_train_question_final.tsv"),
+            Path("FiQA_train_doc_final.tsv"),
+            Path("FiQA_train_question_doc_final.tsv"),
+        ]
 
     def get_queries(self) -> Dict[str, str]:
         queries = {}

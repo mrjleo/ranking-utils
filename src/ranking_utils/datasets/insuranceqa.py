@@ -2,7 +2,7 @@ import csv
 import gzip
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 from ranking_utils.datasets import ParsableDataset
 
@@ -20,6 +20,21 @@ class InsuranceQAV2(ParsableDataset):
         assert pool_size in (100, 500, 1000, 1500)
         self.pool_size = pool_size
         super().__init__(root_dir)
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("vocabulary"),
+            Path("InsuranceQA.label2answer.token.encoded.gz"),
+            Path(
+                f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.train.encoded.gz"
+            ),
+            Path(
+                f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz"
+            ),
+            Path(
+                f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz"
+            ),
+        ]
 
     def prepare_data(self) -> None:
         vocab_file = self.root_dir / "vocabulary"
@@ -45,7 +60,7 @@ class InsuranceQAV2(ParsableDataset):
             self.root_dir
             / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz",
             self.root_dir
-            / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.test.encoded.gz",
+            / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz",
         ]
         sets = [set(), set(), set()]
         prefixes = ["train", "val", "test"]

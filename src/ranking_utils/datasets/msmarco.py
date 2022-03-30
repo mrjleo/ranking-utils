@@ -3,7 +3,7 @@ import logging
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 from ranking_utils.datasets import ParsableDataset
 from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
@@ -21,6 +21,22 @@ class MSMARCOV1Passage(ParsableDataset):
     In the passage dataset, a relevance of 1 is considered irrelevant. Thus, we subtract 1 for each
     relevance while reading the QRels.
     """
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("queries.train.tsv"),
+            Path("queries.dev.tsv"),
+            Path("msmarco-test2019-queries.tsv"),
+            Path("msmarco-test2020-queries.tsv"),
+            Path("qrels.train.tsv"),
+            Path("qrels.dev.tsv"),
+            Path("2019qrels-pass.txt"),
+            Path("2020qrels-pass.txt"),
+            Path("top1000.train.txt"),
+            Path("top1000.dev.tsv"),
+            Path("msmarco-passagetest2019-top1000.tsv"),
+            Path("msmarco-passagetest2020-top1000.tsv"),
+        ]
 
     def prepare_data(self) -> None:
         # read queries
@@ -75,10 +91,10 @@ class MSMARCOV1Passage(ParsableDataset):
         # read top documents
         self.pools = defaultdict(set)
         for f_name, num_lines in [
+            ("top1000.train.txt", 478016942),
+            ("top1000.dev.tsv", 6668967),
             ("msmarco-passagetest2019-top1000.tsv", 189877),
             ("msmarco-passagetest2020-top1000.tsv", 190699),
-            ("top1000.dev.tsv", 6668967),
-            ("top1000.train.txt", 478016942),
         ]:
             f = self.root_dir / f_name
             LOGGER.info(f"reading {f}")
@@ -115,6 +131,23 @@ class MSMARCOV1Passage(ParsableDataset):
 
 class MSMARCOV1Document(ParsableDataset):
     """MS MARCO (v1) document ranking dataset class. Includes TREC-DL 2019 and 2020 test sets."""
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("msmarco-doctrain-queries.tsv"),
+            Path("msmarco-docdev-queries.tsv"),
+            Path("msmarco-test2019-queries.tsv"),
+            Path("msmarco-test2020-queries.tsv"),
+            Path("msmarco-docs.tsv"),
+            Path("msmarco-doctrain-qrels.tsv"),
+            Path("msmarco-docdev-qrels.tsv"),
+            Path("2019qrels-docs.txt"),
+            Path("2020qrels-docs.txt"),
+            Path("msmarco-doctrain-top100"),
+            Path("msmarco-docdev-top100"),
+            Path("msmarco-doctest2019-top100"),
+            Path("msmarco-doctest2020-top100"),
+        ]
 
     def prepare_data(self) -> None:
         def _read_queries(fname):

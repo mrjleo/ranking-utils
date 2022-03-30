@@ -1,7 +1,7 @@
 import csv
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 from ranking_utils.datasets import ParsableDataset
 
@@ -62,6 +62,14 @@ class TREC(ParsableDataset):
                 * ...
             * ...
     """
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("queries.tsv"),
+            Path("documents.tsv"),
+            Path("qrels.tsv"),
+            Path("top.tsv"),
+        ]
 
     def get_queries(self) -> Dict[str, str]:
         queries = {}

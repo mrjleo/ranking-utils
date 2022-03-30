@@ -2,13 +2,22 @@ import csv
 import pickle
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 from ranking_utils.datasets import ParsableDataset
 
 
 class ANTIQUE(ParsableDataset):
     """ANTIQUE dataset class."""
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("antique-train-queries.txt"),
+            Path("antique-test-queries.txt"),
+            Path("antique-collection.txt"),
+            Path("antique-train.qrel"),
+            Path("antique-test.qrel"),
+        ]
 
     def get_queries(self) -> Dict[str, str]:
         queries = {}
