@@ -1,3 +1,6 @@
+import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -17,6 +20,9 @@ from ranking_utils.model.data import (
     ValTestDataset,
 )
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+LOGGER = logging.getLogger(__name__)
 
 
 class H5TrainingDataset(TrainingDataset):
@@ -100,24 +106,74 @@ class H5ValTestDataset(ValTestDataset):
 
 
 class H5PredictionDataset(PredictionDataset):
-    """Prediction dataset for pre-processed data (hdf5)."""
+    """Prediction dataset for pre-processed data (H5).
+    Supports test sets in H5 format and TREC runfiles in TSV format.
+    """
 
     def __init__(
         self,
-        data_file: Union[Path, str],
-        pred_file: Union[Path, str],
         data_processor: DataProcessor,
+        data_file: Union[Path, str],
+        pred_file_h5: Union[Path, str] = None,
+        pred_file_trec: Union[Path, str] = None,
     ) -> None:
-        """Constructor.
+        """Constructor. Exactly one prediction file must be provided.
 
         Args:
-            data_file (Union[Path, str]): File that contains the corpus (.h5).
-            pred_file (Union[Path, str]): File that contains the prediction set (.h5).
             data_processor (DataProcessor): A model-specific data processor.
+            data_file (Union[Path, str]): File that contains the corpus (.h5).
+            pred_file_h5 (Union[Path, str], optional): File that contains the prediction set (.h5). Defaults to None.
+            pred_file_trec (Union[Path, str], optional): File that contains a TREC run (.tsv). Defaults to None.
         """
+        # exactly one of the files needs to be provided
+        assert pred_file_h5 is not None or pred_file_trec is not None
+        assert pred_file_h5 is None or pred_file_trec is None
+
         super().__init__(data_processor)
         self.data_file = Path(data_file)
-        self.pred_file = Path(pred_file)
+
+        if pred_file_h5 is not None:
+            self.pred_file = Path(pred_file_h5)
+            self._temp_fd, self._temp_f = None, None
+
+        else:
+            self._temp_fd, self._temp_f = tempfile.mkstemp()
+            LOGGER.info(f"storing temporary data in {self._temp_f}")
+
+            # recover the internal integer query and doc IDs
+            int_q_ids = {}
+            int_doc_ids = {}
+            with h5py.File(data_file, "r") as fp:
+                for int_id, orig_id in enumerate(
+                    tqdm(fp["orig_q_ids"].asstr(), total=len(fp["orig_q_ids"]))
+                ):
+                    int_q_ids[orig_id] = int_id
+                for int_id, orig_id in enumerate(
+                    tqdm(fp["orig_doc_ids"].asstr(), total=len(fp["orig_doc_ids"]))
+                ):
+                    int_doc_ids[orig_id] = int_id
+
+            # create a test set in a temporary file
+            qd_pairs = []
+            with open(pred_file_trec, encoding="utf-8") as fp:
+                for line in fp:
+                    items = line.split()
+                    qd_pairs.append((items[0], items[2]))
+
+            with h5py.File(self._temp_f, "w") as fp:
+                num_items = len(qd_pairs)
+                ds = {
+                    "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                    "doc_ids": fp.create_dataset(
+                        "doc_ids", (num_items,), dtype="int32"
+                    ),
+                    "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
+                }
+                for i, (q_id, doc_id) in enumerate(tqdm(qd_pairs)):
+                    ds["q_ids"][i] = int_q_ids[q_id]
+                    ds["doc_ids"][i] = int_doc_ids[doc_id]
+
+            self.pred_file = self._temp_f
 
     def _num_instances(self) -> int:
         with h5py.File(self.pred_file, "r") as fp:
@@ -141,15 +197,22 @@ class H5PredictionDataset(PredictionDataset):
             orig_doc_id = fp["orig_doc_ids"].asstr()[doc_id]
             return orig_q_id, orig_doc_id
 
+    def __del__(self) -> None:
+        """Clean up temporary files, if any."""
+        if self._temp_f is not None:
+            LOGGER.info(f"removing {self._temp_f}")
+            os.close(self._temp_fd)
+            os.remove(self._temp_f)
+
 
 class H5DataModule(LightningDataModule):
     """Data module for H5-based datasets."""
 
     def __init__(
         self,
+        data_processor: DataProcessor,
         data_dir: Union[Path, str],
         fold_name: str,
-        data_processor: DataProcessor,
         batch_size: int,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         num_workers: int = 16,
@@ -157,9 +220,9 @@ class H5DataModule(LightningDataModule):
         """Constructor.
 
         Args:
+            data_processor (DataProcessor): Model-specific data processor.
             data_dir (Union[Path, str]): Root directory of all dataset files.
             fold_name (str): Name of the fold (within `data_dir`) to use for training.
-            data_processor (DataProcessor): Model-specific data processor.
             batch_size (int): The batch size to use.
             training_mode (TrainingMode, optional): The training mode to use. Defaults to TrainingMode.POINTWISE.
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
