@@ -170,7 +170,7 @@ class H5DataModule(LightningDataModule):
             data_dir = Path(data_dir)
 
         self.data_file = data_dir / "data.h5"
-        self.train_file = data_dir / fold_name / "train_pairwise.h5"
+        self.train_file = data_dir / fold_name / "train.h5"
         self.val_file = data_dir / fold_name / "val.h5"
         self.test_file = data_dir / fold_name / "test.h5"
 
