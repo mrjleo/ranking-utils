@@ -45,17 +45,17 @@ class Ranker(LightningModule):
     def __init__(
         self,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
-        loss_margin: float = 1.0,
+        pairwise_loss_margin: float = 1.0,
     ) -> None:
         """Constructor.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
-            loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
+            pairwise_loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
         """
         super().__init__()
         self.training_mode = training_mode
-        self.loss_margin = loss_margin
+        self.pairwise_loss_margin = pairwise_loss_margin
         self.bce = torch.nn.BCEWithLogitsLoss()
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
@@ -88,7 +88,9 @@ class Ranker(LightningModule):
             pos_outputs = torch.sigmoid(self(pos_model_batch))
             neg_outputs = torch.sigmoid(self(neg_model_batch))
             loss = torch.mean(
-                torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0)
+                torch.clamp(
+                    self.pairwise_loss_margin - pos_outputs + neg_outputs, min=0
+                )
             )
 
         self.log("train_loss", loss)
