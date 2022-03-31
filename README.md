@@ -21,7 +21,7 @@ The following datasets are currently supported:
 * [MS MARCO (v1) passage and document ranking (TREC-DL test sets)](https://microsoft.github.io/msmarco/)
 * Any dataset in generic TREC format
 
-The script uses [hydra](https://hydra.cc) to configure arguments. Refer to the documentation for detailed instructions on how to configure arguments. 
+The script uses [Hydra](https://hydra.cc). Refer to the documentation for detailed instructions on how to configure arguments. 
 
 ### Example
 The following pre-processes the ANTIQUE dataset:
