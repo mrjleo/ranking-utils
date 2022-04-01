@@ -121,13 +121,14 @@ class TrainingDataset(Dataset, abc.ABC):
         """
         if self.mode == TrainingMode.POINTWISE:
             query, doc, label = self._get_pointwise_instance(index)
-            return self.data_processor.get_model_input(query, doc), label
+            return self.data_processor.get_model_input(query, doc), label, index
 
         if self.mode == TrainingMode.PAIRWISE:
             query, pos_doc, neg_doc = self._get_pairwise_instance(index)
             return (
                 self.data_processor.get_model_input(query, pos_doc),
                 self.data_processor.get_model_input(query, neg_doc),
+                index,
             )
 
     def __len__(self) -> int:
@@ -157,17 +158,19 @@ class TrainingDataset(Dataset, abc.ABC):
             Union[PointwiseTrainingBatch, PairwiseTrainingBatch]: The resulting batch.
         """
         if self.mode == TrainingMode.POINTWISE:
-            model_inputs, labels = zip(*inputs)
+            model_inputs, labels, indices = zip(*inputs)
             return (
                 self.data_processor.get_model_batch(model_inputs),
                 torch.FloatTensor(labels),
+                torch.LongTensor(indices),
             )
 
         if self.mode == TrainingMode.PAIRWISE:
-            pos_inputs, neg_inputs = zip(*inputs)
+            pos_inputs, neg_inputs, indices = zip(*inputs)
             return (
                 self.data_processor.get_model_batch(pos_inputs),
                 self.data_processor.get_model_batch(neg_inputs),
+                torch.LongTensor(indices),
             )
 
 

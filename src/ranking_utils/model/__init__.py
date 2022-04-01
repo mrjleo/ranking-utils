@@ -16,14 +16,14 @@ ValTestInstance = Tuple[str, str, int, int]
 PredictionInstance = Tuple[int, str, str]
 
 ModelInput = Any
-PointwiseTrainingInput = Tuple[ModelInput, int]
-PairwiseTrainingInput = Tuple[ModelInput, ModelInput]
+PointwiseTrainingInput = Tuple[ModelInput, int, int]
+PairwiseTrainingInput = Tuple[ModelInput, ModelInput, int]
 ValTestInput = Tuple[ModelInput, int, int]
 PredictionInput = Tuple[int, ModelInput]
 
 ModelBatch = Any
-PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor]
-PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch]
+PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
+PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch, torch.Tensor]
 ValTestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PredictionBatch = Tuple[torch.Tensor, ModelBatch]
 
@@ -81,10 +81,10 @@ class Ranker(LightningModule):
             torch.Tensor: Training loss.
         """
         if self.training_mode == TrainingMode.POINTWISE:
-            model_batch, labels = batch
+            model_batch, labels, _ = batch
             loss = self.bce(self(model_batch).flatten(), labels.flatten())
         elif self.training_mode == TrainingMode.PAIRWISE:
-            pos_model_batch, neg_model_batch = batch
+            pos_model_batch, neg_model_batch, _ = batch
             pos_outputs = torch.sigmoid(self(pos_model_batch))
             neg_outputs = torch.sigmoid(self(neg_model_batch))
             loss = torch.mean(
