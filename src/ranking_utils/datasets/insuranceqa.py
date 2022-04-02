@@ -32,7 +32,7 @@ class InsuranceQAV2(ParsableDataset):
                 f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz"
             ),
             Path(
-                f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz"
+                f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.test.encoded.gz"
             ),
         ]
 
@@ -60,7 +60,7 @@ class InsuranceQAV2(ParsableDataset):
             self.root_dir
             / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz",
             self.root_dir
-            / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.valid.encoded.gz",
+            / f"InsuranceQA.question.anslabel.token.{self.pool_size}.pool.solr.test.encoded.gz",
         ]
         sets = [set(), set(), set()]
         prefixes = ["train", "val", "test"]
