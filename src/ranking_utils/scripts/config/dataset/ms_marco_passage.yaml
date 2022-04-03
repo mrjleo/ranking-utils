@@ -1,0 +1,2 @@
+_target_: ranking_utils.datasets.msmarco.MSMARCOV1Passage
+root_dir: ???

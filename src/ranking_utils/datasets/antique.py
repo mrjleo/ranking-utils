@@ -1,25 +1,28 @@
 import csv
 import pickle
-from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Iterable, Set, Tuple
+from pathlib import Path
+from typing import Dict, Iterable, List, Set, Tuple
 
-from ranking_utils.dataset import ParsableDataset
+from ranking_utils.datasets import ParsableDataset
 
 
 class ANTIQUE(ParsableDataset):
-    """ANTIQUE dataset class.
-    """
+    """ANTIQUE dataset class."""
+
+    def required_files(self) -> List[Path]:
+        return [
+            Path("antique-train-queries.txt"),
+            Path("antique-test-queries.txt"),
+            Path("antique-collection.txt"),
+            Path("antique-train.qrel"),
+            Path("antique-test.qrel"),
+        ]
 
     def get_queries(self) -> Dict[str, str]:
-        """Return all queries.
-
-        Returns:
-            Dict[str, str]: Query IDs mapped to queries
-        """
         queries = {}
         for f_name in ["antique-train-queries.txt", "antique-test-queries.txt"]:
-            f = self.directory / f_name
+            f = self.root_dir / f_name
             with open(f, encoding="utf-8", newline="") as fp:
                 queries.update(
                     {q_id: query for q_id, query in csv.reader(fp, delimiter="\t")}
@@ -27,12 +30,7 @@ class ANTIQUE(ParsableDataset):
         return queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents.
-
-        Returns:
-            Dict[str, str]: Document IDs mapped to documents
-        """
-        doc_file = self.directory / "antique-collection.txt"
+        doc_file = self.root_dir / "antique-collection.txt"
         with open(doc_file, encoding="utf-8", newline="") as fp:
             return {
                 doc_id: doc
@@ -40,14 +38,9 @@ class ANTIQUE(ParsableDataset):
             }
 
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
-        """Return all query relevances.
-
-        Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
-        """
         qrels = defaultdict(dict)
         for f_name in ["antique-train.qrel", "antique-test.qrel"]:
-            f = self.directory / f_name
+            f = self.root_dir / f_name
             with open(f, encoding="utf-8") as fp:
                 for line in fp:
                     q_id, _, doc_id, rel = line.split()
@@ -57,41 +50,31 @@ class ANTIQUE(ParsableDataset):
         return qrels
 
     def get_pools(self) -> Dict[str, Set[str]]:
-        """Return all pools.
-
-        Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
-        """
         split_file = Path(__file__).parent.absolute() / "splits" / "antique_split.pkl"
         with open(split_file, "rb") as fp:
             pools, _ = pickle.load(fp)
 
         # for the testset, we create the pools from the qrels
-        with open(self.directory / "antique-test.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-test.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, doc_id, _ = line.split()
                 pools[q_id].add(doc_id)
         return pools
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
-        """Return all folds.
-
-        Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
-        """
         split_file = Path(__file__).parent.absolute() / "splits" / "antique_split.pkl"
         with open(split_file, "rb") as fp:
             _, val_ids = pickle.load(fp)
 
         train_ids, test_ids = set(), set()
 
-        with open(self.directory / "antique-train.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-train.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()
                 if q_id not in val_ids:
                     train_ids.add(q_id)
 
-        with open(self.directory / "antique-test.qrel", encoding="utf-8") as fp:
+        with open(self.root_dir / "antique-test.qrel", encoding="utf-8") as fp:
             for line in fp:
                 q_id, _, _, _ = line.split()
                 test_ids.add(q_id)

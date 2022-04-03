@@ -1,22 +1,29 @@
 import csv
-from pathlib import Path
+import logging
+import sys
 from collections import defaultdict
-from typing import Dict, Iterable, Set, Tuple
+from pathlib import Path
+from typing import Dict, Iterable, List, Set, Tuple
 
-from ranking_utils.dataset import ParsableDataset
+from ranking_utils.datasets import ParsableDataset
+
+# some documents are longer than the default limit
+csv.field_size_limit(sys.maxsize)
+
+LOGGER = logging.getLogger(__name__)
 
 
-def read_qrels_trec(fname: Path) -> Dict[str, Dict[str, int]]:
+def read_qrels_trec(f: Path) -> Dict[str, Dict[str, int]]:
     """Read query relevances, TREC format.
 
     Args:
-        fname (Path): Query relevances file
+        f (Path): Query relevances file.
 
     Returns:
-        Dict[str, Dict[str, int]]: Query IDs mapped to tuples of document ID and relevance
+        Dict[str, Dict[str, int]]: Query IDs mapped to tuples of document ID and relevance.
     """
     qrels = defaultdict(dict)
-    with open(fname, encoding="utf-8") as fp:
+    with open(f, encoding="utf-8") as fp:
         for line in fp:
             row = line.split()
             q_id = row[0]
@@ -26,17 +33,17 @@ def read_qrels_trec(fname: Path) -> Dict[str, Dict[str, int]]:
     return qrels
 
 
-def read_top_trec(fname: Path) -> Dict[int, Set[str]]:
+def read_top_trec(f: Path) -> Dict[int, Set[str]]:
     """Read the top document IDs for each query, TREC format.
 
     Args:
-        fname (Path): File to read from
+        f (Path): File to read from.
 
     Returns:
-        Dict[str, Set[str]]: Query IDs mapped to top documents
+        Dict[str, Set[str]]: Query IDs mapped to top documents.
     """
     top = defaultdict(set)
-    with open(fname, encoding="utf-8") as fp:
+    with open(f, encoding="utf-8") as fp:
         for line in fp:
             row = line.split()
             q_id = row[0]
@@ -63,55 +70,47 @@ class TREC(ParsableDataset):
             * ...
     """
 
-    def get_queries(self) -> Dict[str, str]:
-        """Return all queries.
+    def required_files(self) -> List[Path]:
+        return [
+            Path("queries.tsv"),
+            Path("documents.tsv"),
+            Path("qrels.tsv"),
+            Path("top.tsv"),
+        ]
 
-        Returns:
-            Dict[str, str]: Query IDs mapped to queries
-        """
+    def get_queries(self) -> Dict[str, str]:
         queries = {}
-        with open(self.directory / "queries.tsv", encoding="utf-8", newline="") as fp:
+        f = self.root_dir / "queries.tsv"
+        LOGGER.info(f"reading {f}")
+        with open(f, encoding="utf-8", newline="") as fp:
             for q_id, query, _, _ in csv.reader(fp, delimiter="\t"):
                 queries[q_id] = query
         return queries
 
     def get_docs(self) -> Dict[str, str]:
-        """Return all documents.
-
-        Returns:
-            Dict[str, str]: Document IDs mapped to documents
-        """
         docs = {}
-        with open(self.directory / "documents.tsv", encoding="utf-8", newline="") as fp:
+        f = self.root_dir / "documents.tsv"
+        LOGGER.info(f"reading {f}")
+        with open(f, encoding="utf-8", newline="") as fp:
             for doc_id, doc in csv.reader(fp, delimiter="\t"):
                 docs[doc_id] = doc
         return docs
 
     def get_qrels(self) -> Dict[str, Dict[str, int]]:
-        """Return all query relevances.
-
-        Returns:
-            Dict[str, Dict[str, int]]: Query IDs mapped to document IDs mapped to relevance
-        """
-        return read_qrels_trec(self.directory / "qrels.tsv")
+        f = self.root_dir / "qrels.tsv"
+        LOGGER.info(f"reading {f}")
+        return read_qrels_trec(f)
 
     def get_pools(self) -> Dict[str, Set[str]]:
-        """Return all pools.
-
-        Returns:
-            Dict[str, Set[str]]: Query IDs mapped to top retrieved documents
-        """
-        return read_top_trec(self.directory / "top.tsv")
+        f = self.root_dir / "top.tsv"
+        LOGGER.info(f"reading {f}")
+        return read_top_trec(f)
 
     def get_folds(self) -> Iterable[Tuple[Set[str], Set[str], Set[str]]]:
-        """Return all folds.
-
-        Returns:
-            Iterable[Tuple[Set[str], Set[str], Set[str]]]: Folds of train, validation and test query IDs
-        """
         folds = []
-        folds_dir = self.directory / "folds"
+        folds_dir = self.root_dir / "folds"
         for fold_dir in sorted(list(folds_dir.iterdir())):
+            LOGGER.info(f"reading {fold_dir}")
             with open(folds_dir / fold_dir / "train_ids.txt") as fp:
                 train_ids = set([l.strip() for l in fp])
             with open(folds_dir / fold_dir / "val_ids.txt") as fp:

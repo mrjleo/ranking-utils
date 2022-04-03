@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - dataset: ???
+
+random_seed: 123
+
+training:
+  negatives_per_positive: 1
+  balance: False

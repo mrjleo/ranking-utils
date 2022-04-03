@@ -1,0 +1,3 @@
+_target_: ranking_utils.datasets.insuranceqa.InsuranceQAV2
+root_dir: ???
+pool_size: 100
