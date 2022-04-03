@@ -13,7 +13,7 @@ from pytorch_lightning import seed_everything
 def main(config: DictConfig) -> None:
     seed_everything(config.random_seed)
     instantiate(config.dataset).save(
-        Path.cwd(), config.num_training_negatives, config.balance_training_pairs
+        Path.cwd(), config.training.negatives_per_positive, config.training.balance
     )
 
 
