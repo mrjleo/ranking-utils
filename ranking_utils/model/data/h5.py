@@ -2,7 +2,8 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from re import I
+from typing import Iterator, Optional, Tuple, Union
 
 import h5py
 from pytorch_lightning import LightningDataModule
@@ -192,14 +193,16 @@ class H5PredictionDataset(PredictionDataset):
             doc = fp["docs"].asstr()[doc_id]
         return index, query, doc
 
-    def get_ids(self, index: int) -> Tuple[str, str]:
-        with h5py.File(self.pred_file, "r") as fp:
-            q_id = fp["q_ids"][index]
-            doc_id = fp["doc_ids"][index]
-        with h5py.File(self.data_file, "r") as fp:
-            orig_q_id = fp["orig_q_ids"].asstr()[q_id]
-            orig_doc_id = fp["orig_doc_ids"].asstr()[doc_id]
-            return orig_q_id, orig_doc_id
+    def ids(self) -> Iterator[Tuple[int, str, str]]:
+        with h5py.File(self.data_file, "r") as fp_data, h5py.File(
+            self.pred_file, "r"
+        ) as fp_pred:
+            for i in range(len(self)):
+                q_id = fp_pred["q_ids"][i]
+                doc_id = fp_pred["doc_ids"][i]
+                orig_q_id = fp_data["orig_q_ids"].asstr()[q_id]
+                orig_doc_id = fp_data["orig_doc_ids"].asstr()[doc_id]
+                yield i, orig_q_id, orig_doc_id
 
     def __del__(self) -> None:
         """Clean up temporary files, if any."""

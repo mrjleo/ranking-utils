@@ -1,5 +1,5 @@
 import abc
-from typing import Iterable, Tuple, Union
+from typing import Iterable, Iterator, Tuple, Union
 
 import torch
 from ranking_utils.model import (
@@ -276,14 +276,11 @@ class PredictionDataset(Dataset, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_ids(self, index: int) -> Tuple[str, str]:
-        """Return the original query ID and document ID corresponding to an index.
+    def ids(self) -> Iterator[Tuple[int, str, str]]:
+        """Yield the original query and document IDs in the same order as the prediction instances.
 
-        Args:
-            index (int): The index.
-
-        Returns:
-            Tuple[str, str]: Query ID and document ID.
+        Yields:
+            Tuple[int, str, str]: Index, query ID and document ID.
         """
         pass
 
