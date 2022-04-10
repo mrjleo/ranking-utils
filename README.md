@@ -63,7 +63,7 @@ data_module = H5DataModule(
     batch_size=32
 )
 model = MyRanker(...)
-model.training_mode = TrainingMode.PAIRWISE
+data_module.training_mode = model.training_mode = TrainingMode.PAIRWISE
 model.pairwise_loss_margin = 0.2
 Trainer(...).fit(model=model, datamodule=data_module)
 ```
