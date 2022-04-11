@@ -4,7 +4,7 @@ This repository provides miscellaneous utilities for ranking models.
 ## Installation
 Clone this repository and run:
 ```
-python -m pip install .
+python -m pip install -e .
 ```
 
 ## Usage
