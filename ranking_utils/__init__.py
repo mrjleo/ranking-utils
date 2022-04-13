@@ -2,6 +2,8 @@ import csv
 from pathlib import Path
 from typing import Dict
 
+__version__ = "0.1.0"
+
 
 def write_trec_eval_file(
     out_file: Path, predictions: Dict[str, Dict[str, float]], name: str
