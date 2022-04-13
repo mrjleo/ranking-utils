@@ -45,7 +45,7 @@ Implementing a ranker requires two components:
     - `get_model_input(self, query: str, doc: str) -> ModelInput`: Transforms a query-document pair into an input that is suitable for the model.
     - `get_model_batch(self, inputs: Iterable[ModelInput]) -> ModelBatch`: Creates a model batch from multiple inputs.
 2. The ranking model itself subclasses `ranking_utils.model.Ranker` and implements the following methods:
-    - `forward(self, batch: ModelBatch) -> torch.Tensor`: Computes query-document scores, output shape `(batch_size, 1)`
+    - `forward(self, batch: ModelBatch) -> torch.Tensor`: Computes query-document scores, output shape `(batch_size, 1)`.
     - `configure_optimizers(self) -> Tuple[List[Any], List[Any]]`: Configures optimizers (and schedulers). Refer to the [PyTorch Lightning documentation](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#configure-optimizers).
 
 You can then train your model using the usual PyTorch Lightning setup. For example:
@@ -72,7 +72,7 @@ Trainer(...).fit(model=model, datamodule=data_module)
 After each epoch, the ranker automatically computes the following ranking metrics on the validation set:
 * `val_RetrievalMAP`: mean average precision
 * `val_RetrievalMRR`: mean reciprocal rank
-* `val_RetrievalNormalizedDCG`: nDCG score
+* `val_RetrievalNormalizedDCG`: nDCG
 
 These can be used in combination with callbacks, e.g. [early stopping](https://pytorch-lightning.readthedocs.io/en/latest/api/pytorch_lightning.callbacks.EarlyStopping.html?highlight=earlystopping).
 
