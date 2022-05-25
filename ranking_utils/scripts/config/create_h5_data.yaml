@@ -5,5 +5,9 @@ defaults:
 random_seed: 123
 
 training:
-  negatives_per_positive: 1
-  balance: False
+
+  # number of negative documents to sample for each positive
+  num_negatives: 1
+
+  # whether to balance the total number of instances for each query based on its number of positives
+  balance_queries: False
