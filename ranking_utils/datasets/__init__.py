@@ -19,8 +19,8 @@ class TrainingSet(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
         num_negatives: int,
-        balance_queries: bool,
         balance_labels: bool,
+        balance_queries: bool,
         pairwise: bool = False,
     ) -> None:
         """Constructor.
@@ -30,6 +30,7 @@ class TrainingSet(object):
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
             num_negatives (int): Number of negative documents to sample for each positive.
+            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
             pairwise (bool, optional): Yield pairwise training data. Defaults to False.
         """
@@ -37,6 +38,7 @@ class TrainingSet(object):
         self.qrels = qrels
         self.pools = pools
         self.num_negatives = num_negatives
+        self.balance_labels = balance_labels
         self.balance_queries = balance_queries
         self.pairwise = pairwise
 
@@ -174,7 +176,10 @@ class TrainingSet(object):
 
             positives = self._get_all_positives(q_id)
             for doc_id in positives:
-                result.extend([(q_id, doc_id, 1)] * num_negatives)
+                if self.balance_labels:
+                    result.extend([(q_id, doc_id, 1)] * num_negatives)
+                else:
+                    result.append((q_id, doc_id, 1))
 
             # sample negatives
             # all documents from the pool with no positive relevance
@@ -403,6 +408,7 @@ class Dataset(object):
         self,
         fold: int,
         num_negatives: int,
+        balance_labels: bool,
         balance_queries: bool,
         pairwise: bool = False,
     ) -> TrainingSet:
@@ -411,6 +417,7 @@ class Dataset(object):
         Args:
             fold (int): Fold ID.
             num_negatives (int): Number of negative documents to sample for each positive.
+            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
             pairwise (bool, optional): Yield pairwise training data. Defaults to False.
 
@@ -419,7 +426,13 @@ class Dataset(object):
         """
         train_ids = self.folds[fold][0]
         return TrainingSet(
-            train_ids, self.qrels, self.pools, num_negatives, balance_queries, pairwise
+            train_ids,
+            self.qrels,
+            self.pools,
+            num_negatives,
+            balance_labels,
+            balance_queries,
+            pairwise,
         )
 
     def get_val_set(self, fold: int) -> ValTestSet:
@@ -490,12 +503,19 @@ class Dataset(object):
                     orig_doc_id = self.orig_doc_ids[doc_id]
                     writer.writerow([orig_q_id, 0, orig_doc_id, rel])
 
-    def save(self, target_dir: Path, num_negatives: int, balance_queries: bool) -> None:
+    def save(
+        self,
+        target_dir: Path,
+        num_negatives: int,
+        balance_labels: bool,
+        balance_queries: bool,
+    ) -> None:
         """Save the collection, QRels and all folds of training, validation and test set.
 
         Args:
             target_dir (Path): Where to save the files
             num_negatives (int): Number of negative documents to sample for each positive.
+            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
         """
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -505,10 +525,10 @@ class Dataset(object):
             fold_dir = target_dir / f"fold_{fold}"
             fold_dir.mkdir(parents=True, exist_ok=True)
             self.get_training_set(
-                fold, num_negatives, balance_queries, pairwise=False
+                fold, num_negatives, balance_labels, balance_queries, pairwise=False
             ).save(fold_dir / "train_pointwise.h5")
             self.get_training_set(
-                fold, num_negatives, balance_queries, pairwise=True
+                fold, num_negatives, balance_labels, balance_queries, pairwise=True
             ).save(fold_dir / "train_pairwise.h5")
             self.get_val_set(fold).save(fold_dir / "val.h5")
             self.get_test_set(fold).save(fold_dir / "test.h5")
