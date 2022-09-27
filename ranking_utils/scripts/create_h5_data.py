@@ -17,6 +17,7 @@ def main(config: DictConfig) -> None:
         config.training.num_instances_per_positive,
         config.training.balance_queries,
         config.training.balance_labels,
+        config.training.num_negatives,
     )
 
 

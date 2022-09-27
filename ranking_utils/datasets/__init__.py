@@ -216,11 +216,11 @@ class PointwiseTrainingSet(TrainingSet):
                     result.append((q_id, doc_id, 1))
 
             # sample negatives
-            candidates = self._get_all_negatives(q_id)
+            negative_candidates = self._get_all_negatives(q_id)
             # in case there are not enough candidates
-            num_neg = min(len(candidates), len(positives) * num_instances)
+            num_neg = min(len(negative_candidates), len(positives) * num_instances)
             if num_neg > 0:
-                for doc_id in random.sample(candidates, num_neg):
+                for doc_id in random.sample(negative_candidates, num_neg):
                     result.append((q_id, doc_id, 0))
         return result
 
@@ -288,6 +288,76 @@ class PairwiseTrainingSet(TrainingSet):
                 ds["q_ids"][i] = q_id
                 ds["pos_doc_ids"][i] = pos_doc_id
                 ds["neg_doc_ids"][i] = neg_doc_id
+
+
+class ContrastiveTrainingSet(TrainingSet):
+    """A training set iterator for contrastive training instances."""
+
+    def __init__(
+        self,
+        train_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+        num_instances_per_positive: int,
+        balance_queries: bool,
+        num_negatives: int,
+    ) -> None:
+        """Constructor.
+
+        Args:
+            train_ids (Set[int]): Training set query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            num_negatives (int): Number of negative documents to contrast each positive.
+        """
+        self.num_negatives = num_negatives
+        super().__init__(
+            train_ids, qrels, pools, num_instances_per_positive, balance_queries
+        )
+
+    def _create_training_data(self) -> List[Tuple[int, int, List[int]]]:
+        """Create pairwise training data as tuples of query ID, positive document ID, negative document IDs.
+
+        Returns:
+            List[Tuple[int, int, List[int]]]: The training data.
+        """
+        result = []
+        for q_id in self.train_ids:
+            positives = self._get_all_positives(q_id)
+            for positive in positives:
+                negative_candidates = self._get_all_negatives(q_id)
+                for _ in range(self._get_num_instances_per_positive(q_id)):
+                    assert len(negative_candidates) >= self.num_negatives
+                    result.append(
+                        (
+                            q_id,
+                            positive,
+                            random.sample(negative_candidates, self.num_negatives),
+                        )
+                    )
+        return result
+
+    def save(self, dest: Path) -> None:
+        num_items = len(self)
+        with h5py.File(dest, "w") as fp:
+            ds = {
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "pos_doc_ids": fp.create_dataset(
+                    "pos_doc_ids", (num_items,), dtype="int32"
+                ),
+                "neg_doc_ids": fp.create_dataset(
+                    "neg_doc_ids", (num_items * self.num_negatives,), dtype="int32"
+                ),
+            }
+            for i, (q_id, pos_doc_id, neg_doc_ids) in enumerate(
+                tqdm(self, desc="Saving contrastive training set")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["pos_doc_ids"][i] = pos_doc_id
+                for j, neg_doc_id in enumerate(neg_doc_ids):
+                    ds["neg_doc_ids"][i * self.num_negatives + j] = neg_doc_id
 
 
 class ValTestSet(object):
@@ -490,6 +560,32 @@ class Dataset(object):
             balance_queries,
         )
 
+    def get_contrastive_training_set(
+        self,
+        fold: int,
+        num_instances_per_positive: int,
+        balance_queries: bool,
+        num_negatives: int,
+    ) -> ContrastiveTrainingSet:
+        """Contrastive training set iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            num_negatives (int): Number of negative documents to contrast each positive.
+        Returns:
+            ContrastiveTrainingSet: The training set.
+        """
+        return ContrastiveTrainingSet(
+            self.folds[fold][0],
+            self.qrels,
+            self.pools,
+            num_instances_per_positive,
+            balance_queries,
+            num_negatives,
+        )
+
     def get_val_set(self, fold: int) -> ValTestSet:
         """Validation set iterator for a given fold.
 
@@ -564,6 +660,7 @@ class Dataset(object):
         num_instances_per_positive: int,
         balance_queries: bool,
         balance_labels: bool,
+        num_negatives: int,
     ) -> None:
         """Save the collection, QRels and all folds of training, validation and test set.
 
@@ -572,6 +669,7 @@ class Dataset(object):
             num_instances_per_positive (int): Number of training instances for each relevant document.
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
             balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise).
+            num_negatives (int): Number of negative documents to contrast each positive (contrastive).
         """
         target_dir.mkdir(parents=True, exist_ok=True)
         self.save_collection(target_dir / "data.h5")
@@ -585,6 +683,9 @@ class Dataset(object):
             self.get_pairwise_training_set(
                 fold, num_instances_per_positive, balance_queries
             ).save(fold_dir / "train_pairwise.h5")
+            self.get_contrastive_training_set(
+                fold, num_instances_per_positive, balance_queries, num_negatives
+            ).save(fold_dir / "train_contrastive.h5")
             self.get_val_set(fold).save(fold_dir / "val.h5")
             self.get_test_set(fold).save(fold_dir / "test.h5")
 

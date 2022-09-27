@@ -14,3 +14,6 @@ training:
 
   # Whether to balance the total number of positives and negatives (pointwise).
   balance_labels: True
+
+  # Number of negative documents to contrast each positive (contrastive).
+  num_negatives: 16
