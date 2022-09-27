@@ -14,9 +14,9 @@ def main(config: DictConfig) -> None:
     seed_everything(config.random_seed)
     instantiate(config.dataset).save(
         Path.cwd(),
-        config.training.num_negatives,
-        config.training.balance_labels,
+        config.training.num_instances_per_positive,
         config.training.balance_queries,
+        config.training.balance_labels,
     )
 
 
