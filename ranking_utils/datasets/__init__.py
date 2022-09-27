@@ -76,7 +76,7 @@ class TrainingSet(abc.ABC):
         return result
 
     def _get_all_positives(self, q_id: int) -> List[int]:
-        """Return all positive documents for a query.
+        """Return all positive documents for a query from its pool and QRels.
 
         Args:
             q_id (int): The query ID.
@@ -87,6 +87,21 @@ class TrainingSet(abc.ABC):
         result = []
         for rel, doc_ids in self._get_docs_by_relevance(q_id).items():
             if rel > 0:
+                result.extend(doc_ids)
+        return result
+
+    def _get_all_negatives(self, q_id: int) -> List[int]:
+        """Return all negative documents for a query from its pool and QRels.
+
+        Args:
+            q_id (int): The query ID.
+
+        Returns:
+            List[int]: A list of document IDs.
+        """
+        result = []
+        for rel, doc_ids in self._get_docs_by_relevance(q_id).items():
+            if rel <= 0:
                 result.extend(doc_ids)
         return result
 
@@ -201,12 +216,7 @@ class PointwiseTrainingSet(TrainingSet):
                     result.append((q_id, doc_id, 1))
 
             # sample negatives
-            # all documents from the pool with no positive relevance
-            candidates = [
-                doc_id
-                for doc_id in self.pools.get(q_id, [])
-                if self.qrels[q_id].get(doc_id, 0) <= 0
-            ]
+            candidates = self._get_all_negatives(q_id)
             # in case there are not enough candidates
             num_neg = min(len(candidates), len(positives) * num_instances)
             if num_neg > 0:
@@ -215,11 +225,6 @@ class PointwiseTrainingSet(TrainingSet):
         return result
 
     def save(self, dest: Path) -> None:
-        """Save the training set.
-
-        Args:
-            dest (Path): File to create.
-        """
         num_items = len(self)
         with h5py.File(dest, "w") as fp:
             ds = {
@@ -236,57 +241,9 @@ class PointwiseTrainingSet(TrainingSet):
 
 
 class PairwiseTrainingSet(TrainingSet):
-    """A training set iterator for pairwise training instances."""
-
-    def __init__(
-        self,
-        train_ids: Set[int],
-        qrels: Dict[int, Dict[int, int]],
-        pools: Dict[int, Set[int]],
-        num_instances_per_positive: int,
-        balance_queries: bool,
-    ) -> None:
-        """Constructor.
-
-        Args:
-            train_ids (Set[int]): Training set query IDs.
-            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
-            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
-            num_instances_per_positive (int): Number of training instances for each relevant document.
-            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
-        """
-        super().__init__(
-            train_ids, qrels, pools, num_instances_per_positive, balance_queries
-        )
-
-    def _get_triples(self, q_id: int) -> List[Tuple[int, int, int]]:
-        """Return all training triples for a query as tuples of query ID, positive document ID, negative document ID.
-        Adapted from https://github.com/ucasir/NPRF/blob/6387db2fce30ee2b9f659ad1addfe949e6349f85/utils/pair_generator.py#L100.
-
-        Args:
-            q_id (int): The query ID.
-
-        Returns:
-            List[Tuple[int, int, int]]: A list of training triples.
-        """
-        docs = self._get_docs_by_relevance(q_id)
-        num_instances = self._get_num_instances_per_positive(q_id)
-
-        # available relevances sorted in ascending order
-        rels = sorted(docs.keys())
-
-        result = []
-        # start at 1, as the lowest relevance can not be used as positives
-        for i, rel in enumerate(rels[1:], start=1):
-            # take all documents with lower relevance as negative candidates
-            negative_candidates = set.union(*[docs[rels[j]] for j in range(i)])
-            for positive in docs[rel]:
-                sample_size = min(num_instances, len(negative_candidates))
-                negatives = random.sample(negative_candidates, sample_size)
-                result.extend(
-                    zip([q_id] * sample_size, [positive] * sample_size, negatives)
-                )
-        return result
+    """A training set iterator for pairwise training instances.
+    Adapted from https://github.com/ucasir/NPRF/blob/6387db2fce30ee2b9f659ad1addfe949e6349f85/utils/pair_generator.py#L100.
+    """
 
     def _create_training_data(self) -> List[Tuple[int, int, int]]:
         """Create pairwise training data as tuples of query ID, positive document ID, negative document ID.
@@ -296,15 +253,24 @@ class PairwiseTrainingSet(TrainingSet):
         """
         result = []
         for q_id in self.train_ids:
-            result.extend(self._get_triples(q_id))
+            # available relevances sorted in ascending order
+            docs = self._get_docs_by_relevance(q_id)
+            rels = sorted(docs.keys())
+
+            num_instances = self._get_num_instances_per_positive(q_id)
+            # start at 1, as the lowest relevance can not be used as positives
+            for i, rel in enumerate(rels[1:], start=1):
+                # take all documents with lower relevance as negative candidates
+                negative_candidates = set.union(*[docs[rels[j]] for j in range(i)])
+                for positive in docs[rel]:
+                    sample_size = min(num_instances, len(negative_candidates))
+                    negatives = random.sample(negative_candidates, sample_size)
+                    result.extend(
+                        zip([q_id] * sample_size, [positive] * sample_size, negatives)
+                    )
         return result
 
     def save(self, dest: Path) -> None:
-        """Save the training set.
-
-        Args:
-            dest (Path): File to create.
-        """
         num_items = len(self)
         with h5py.File(dest, "w") as fp:
             ds = {
