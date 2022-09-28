@@ -116,7 +116,7 @@ class Ranker(LightningModule):
             # split into individual negatives for each instance
             neg_outputs = neg_outputs.reshape((pos_outputs.shape[0], -1, 1)).sum(1)
 
-            contrastive_loss = pos_outputs / (pos_outputs + neg_outputs)
+            contrastive_loss = -torch.log(pos_outputs / (pos_outputs + neg_outputs))
             loss = torch.mean(contrastive_loss.flatten())
 
         self.log("train_loss", loss)
