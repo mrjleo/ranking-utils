@@ -1,25 +1,33 @@
 import abc
+import itertools
 from typing import Iterable, Iterator, Tuple, Union
 
 import torch
 from ranking_utils.model import (
+    ContrastiveTrainingInstance,
     ModelBatch,
     ModelInput,
-    PairwiseTrainingBatch,
     PairwiseTrainingInput,
     PairwiseTrainingInstance,
-    PointwiseTrainingBatch,
     PointwiseTrainingInput,
     PointwiseTrainingInstance,
     PredictionBatch,
     PredictionInput,
     PredictionInstance,
+    TrainingBatch,
+    TrainingInput,
     TrainingMode,
     ValTestBatch,
     ValTestInput,
     ValTestInstance,
 )
 from torch.utils.data import Dataset
+
+TrainingInputs = Union[
+    Iterable[PointwiseTrainingInput],
+    Iterable[PairwiseTrainingInput],
+    Iterable[PointwiseTrainingInput],
+]
 
 
 class DataProcessor(abc.ABC):
@@ -85,6 +93,15 @@ class TrainingDataset(Dataset, abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _num_contrastive_instances(self) -> int:
+        """Return the number of contrastive training instances.
+
+        Returns:
+            int: The number of contrastive training instances.
+        """
+        pass
+
+    @abc.abstractmethod
     def _get_pointwise_instance(self, index: int) -> PointwiseTrainingInstance:
         """Return the pointwise training instance corresponding to an index.
 
@@ -108,16 +125,26 @@ class TrainingDataset(Dataset, abc.ABC):
         """
         pass
 
-    def __getitem__(
-        self, index: int
-    ) -> Union[PointwiseTrainingInput, PairwiseTrainingInput]:
+    @abc.abstractmethod
+    def _get_contrastive_instance(self, index: int) -> ContrastiveTrainingInstance:
+        """Return the contrastive training instance corresponding to an index.
+
+        Args:
+            index (int): The index.
+
+        Returns:
+            ContrastiveTrainingInstance: The corresponding training instance.
+        """
+        pass
+
+    def __getitem__(self, index: int) -> TrainingInput:
         """Return a training input.
 
         Args:
             index (int): Item index.
 
         Returns:
-            Union[PointwiseTrainingInput, PairwiseTrainingInput]: Input, depending on the mode.
+            TrainingInput: Input, depending on the mode.
         """
         if self.mode == TrainingMode.POINTWISE:
             query, doc, label = self._get_pointwise_instance(index)
@@ -128,6 +155,17 @@ class TrainingDataset(Dataset, abc.ABC):
             return (
                 self.data_processor.get_model_input(query, pos_doc),
                 self.data_processor.get_model_input(query, neg_doc),
+                index,
+            )
+
+        if self.mode == TrainingMode.CONTRASTIVE:
+            query, pos_doc, neg_docs = self._get_contrastive_instance(index)
+            return (
+                self.data_processor.get_model_input(query, pos_doc),
+                [
+                    self.data_processor.get_model_input(query, neg_doc)
+                    for neg_doc in neg_docs
+                ],
                 index,
             )
 
@@ -143,19 +181,17 @@ class TrainingDataset(Dataset, abc.ABC):
         if self.mode == TrainingMode.PAIRWISE:
             return self._num_pairwise_instances()
 
-    def collate_fn(
-        self,
-        inputs: Union[
-            Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput]
-        ],
-    ) -> Union[PointwiseTrainingBatch, PairwiseTrainingBatch]:
+        if self.mode == TrainingMode.CONTRASTIVE:
+            return self._num_contrastive_instances()
+
+    def collate_fn(self, inputs: TrainingInputs) -> TrainingBatch:
         """Collate inputs into a batch.
 
         Args:
-            inputs (Union[Iterable[PointwiseTrainingInput], Iterable[PairwiseTrainingInput]]): The inputs.
+            inputs (TrainingInputs): The inputs.
 
         Returns:
-            Union[PointwiseTrainingBatch, PairwiseTrainingBatch]: The resulting batch.
+            TrainingBatch: The resulting batch.
         """
         if self.mode == TrainingMode.POINTWISE:
             model_inputs, labels, indices = zip(*inputs)
@@ -170,6 +206,14 @@ class TrainingDataset(Dataset, abc.ABC):
             return (
                 self.data_processor.get_model_batch(pos_inputs),
                 self.data_processor.get_model_batch(neg_inputs),
+                torch.LongTensor(indices),
+            )
+
+        if self.mode == TrainingMode.CONTRASTIVE:
+            pos_inputs, neg_input_lists, indices = zip(*inputs)
+            return (
+                self.data_processor.get_model_batch(pos_inputs),
+                self.data_processor.get_model_batch(itertools.chain(*neg_input_lists)),
                 torch.LongTensor(indices),
             )
 

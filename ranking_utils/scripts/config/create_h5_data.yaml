@@ -6,11 +6,14 @@ random_seed: 123
 
 training:
 
-  # number of negative documents to sample for each positive
-  num_negatives: 1
+  # Number of training instances for each relevant document.
+  num_instances_per_positive: 1
 
-  # whether to balance the total number of positives and negatives (pointwise training)
+  # Whether to balance the total number of instances for each query based on its number of positives.
+  balance_queries: False
+
+  # Whether to balance the total number of positives and negatives (pointwise).
   balance_labels: True
 
-  # whether to balance the total number of instances for each query based on its number of positives
-  balance_queries: False
+  # Number of negative documents to contrast each positive (contrastive).
+  num_negatives: 8

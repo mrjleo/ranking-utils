@@ -1,27 +1,28 @@
 import abc
 import csv
+import logging
 import random
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Set, Tuple, Union
 
 import h5py
 import numpy as np
 from tqdm import tqdm
 
+LOGGER = logging.getLogger(__name__)
 
-class TrainingSet(object):
-    """A training set iterator for pointwise or pairwise training instances."""
+
+class TrainingSet(abc.ABC):
+    """Base class for training set iterators."""
 
     def __init__(
         self,
         train_ids: Set[int],
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
-        num_negatives: int,
-        balance_labels: bool,
+        num_instances_per_positive: int,
         balance_queries: bool,
-        pairwise: bool = False,
     ) -> None:
         """Constructor.
 
@@ -29,28 +30,38 @@ class TrainingSet(object):
             train_ids (Set[int]): Training set query IDs.
             qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
             pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
-            num_negatives (int): Number of negative documents to sample for each positive.
-            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
+            num_instances_per_positive (int): Number of training instances for each relevant document.
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
-            pairwise (bool, optional): Yield pairwise training data. Defaults to False.
         """
         self.train_ids = train_ids
         self.qrels = qrels
         self.pools = pools
-        self.num_negatives = num_negatives
-        self.balance_labels = balance_labels
+        self.num_instances_per_positive = num_instances_per_positive
         self.balance_queries = balance_queries
-        self.pairwise = pairwise
 
-        if balance_queries:
-            self.percentiles = self._compute_percentiles()
-        if pairwise:
-            self.items = self._create_pairwise_data()
-        else:
-            self.items = self._create_pointwise_data()
+        self.percentiles = None
+        self.items = self._create_training_data()
+
+    @abc.abstractmethod
+    def _create_training_data(self) -> List[Any]:
+        """Create the training data as a list containint some structure of query and document IDs.
+
+        Returns:
+            List[Any]: The training data.
+        """
+        pass
+
+    @abc.abstractmethod
+    def save(self, dest: Path) -> None:
+        """Save the training set.
+
+        Args:
+            dest (Path): File to create.
+        """
+        pass
 
     def _get_docs_by_relevance(self, q_id: int) -> Dict[int, Set[int]]:
-        """Return all documents for a query from its pool and qrels, grouped by relevance.
+        """Return all documents for a query from its pool and QRels, grouped by relevance.
         Documents from the pool that have no associated relevance get a relevance of 0.
 
         Args:
@@ -68,7 +79,7 @@ class TrainingSet(object):
         return result
 
     def _get_all_positives(self, q_id: int) -> List[int]:
-        """Return all positive documents for a query.
+        """Return all positive documents for a query from its pool and QRels.
 
         Args:
             q_id (int): The query ID.
@@ -79,6 +90,21 @@ class TrainingSet(object):
         result = []
         for rel, doc_ids in self._get_docs_by_relevance(q_id).items():
             if rel > 0:
+                result.extend(doc_ids)
+        return result
+
+    def _get_all_negatives(self, q_id: int) -> List[int]:
+        """Return all negative documents for a query from its pool and QRels.
+
+        Args:
+            q_id (int): The query ID.
+
+        Returns:
+            List[int]: A list of document IDs.
+        """
+        result = []
+        for rel, doc_ids in self._get_docs_by_relevance(q_id).items():
+            if rel <= 0:
                 result.extend(doc_ids)
         return result
 
@@ -102,6 +128,9 @@ class TrainingSet(object):
         Returns:
             float: The balancing factor.
         """
+        if self.percentiles is None:
+            self.percentiles = self._compute_percentiles(self)
+
         num_positives = len(self._get_all_positives(q_id))
         q25, q50, q75 = self.percentiles
         if num_positives < q25:
@@ -112,88 +141,20 @@ class TrainingSet(object):
             return 1.5
         return 1.0
 
-    def _get_triples(self, q_id: int) -> List[Tuple[int, int, int]]:
-        """Return all training triples for a query as tuples of query ID, positive document ID, negative document ID.
-        Adapted from https://github.com/ucasir/NPRF/blob/6387db2fce30ee2b9f659ad1addfe949e6349f85/utils/pair_generator.py#L100.
+    def _get_num_instances_per_positive(self, q_id: int) -> int:
+        """Return the number of instances per positive for a query. Takes balancing into account.
 
         Args:
             q_id (int): The query ID.
 
         Returns:
-            List[Tuple[int, int, int]]: A list of training triples.
+            int: The total number of instances for each relevant document of that query.
         """
-        docs = self._get_docs_by_relevance(q_id)
-        result = []
-
         if self.balance_queries:
-            # balance the number of instances for this query based on the number of positives
-            factor = self._get_balancing_factor(q_id)
-            num_negatives = int(self.num_negatives * factor)
-        else:
-            num_negatives = self.num_negatives
-
-        # available relevances sorted in ascending order
-        rels = sorted(docs.keys())
-
-        # start at 1, as the lowest relevance can not be used as positives
-        for i, rel in enumerate(rels[1:], start=1):
-            # take all documents with lower relevance as negative candidates
-            negative_candidates = set.union(*[docs[rels[j]] for j in range(i)])
-            for positive in docs[rel]:
-                sample_size = min(num_negatives, len(negative_candidates))
-                negatives = random.sample(negative_candidates, sample_size)
-                result.extend(
-                    zip([q_id] * sample_size, [positive] * sample_size, negatives)
-                )
-        return result
-
-    def _create_pairwise_data(self) -> List[Tuple[int, int, int]]:
-        """Create pairwise training data as tuples of query ID, positive document ID, negative document ID.
-
-        Returns:
-            List[Tuple[int, int, int]]: The training data.
-        """
-        result = []
-        for q_id in self.train_ids:
-            result.extend(self._get_triples(q_id))
-        return result
-
-    def _create_pointwise_data(self) -> List[Tuple[int, int, int]]:
-        """Create pointwise training data as tuples of query ID, document ID, label.
-
-        Returns:
-            List[Tuple[int, int, int]]: The training data.
-        """
-        result = []
-        # get all positives first
-        for q_id in self.train_ids:
-            if self.balance_queries:
-                # balance the number of instances for this query based on the number of positives
-                factor = self._get_balancing_factor(q_id)
-                num_negatives = int(self.num_negatives * factor)
-            else:
-                num_negatives = self.num_negatives
-
-            positives = self._get_all_positives(q_id)
-            for doc_id in positives:
-                if self.balance_labels:
-                    result.extend([(q_id, doc_id, 1)] * num_negatives)
-                else:
-                    result.append((q_id, doc_id, 1))
-
-            # sample negatives
-            # all documents from the pool with no positive relevance
-            candidates = [
-                doc_id
-                for doc_id in self.pools.get(q_id, [])
-                if self.qrels[q_id].get(doc_id, 0) <= 0
-            ]
-            # in case there are not enough candidates
-            num_neg = min(len(candidates), len(positives) * num_negatives)
-            if num_neg > 0:
-                for doc_id in random.sample(candidates, num_neg):
-                    result.append((q_id, doc_id, 0))
-        return result
+            return int(
+                self.num_instances_per_positive * self._get_balancing_factor(q_id)
+            )
+        return self.num_instances_per_positive
 
     def __len__(self) -> int:
         """Dataset length.
@@ -203,56 +164,208 @@ class TrainingSet(object):
         """
         return len(self.items)
 
-    def __iter__(self) -> Iterable[Tuple[int, int, int]]:
+    def __iter__(self) -> Iterable[Any]:
         """Yield all training examples.
 
         Yields:
-            Tuple[int, int, int]: Yields one of
-                * query ID, document ID, label (pointwise training),
-                * query ID, positive document ID, negative document ID (pairwise training).
+            Tuple[Any]: The training examples.
         """
         yield from self.items
 
-    def save(self, dest: Path) -> None:
-        """Save the training set.
+
+class PointwiseTrainingSet(TrainingSet):
+    """A training set iterator for pointwise training instances."""
+
+    def __init__(
+        self,
+        train_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+        num_instances_per_positive: int,
+        balance_queries: bool,
+        balance_labels: bool,
+    ) -> None:
+        """Constructor.
 
         Args:
-            dest (Path): File to create.
+            train_ids (Set[int]): Training set query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            balance_labels (bool): Whether to balance the total number of positives and negatives.
         """
-        num_items = len(self)
+        self.balance_labels = balance_labels
+        super().__init__(
+            train_ids, qrels, pools, num_instances_per_positive, balance_queries
+        )
 
-        if self.pairwise:
-            with h5py.File(dest, "w") as fp:
-                ds = {
-                    "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
-                    "pos_doc_ids": fp.create_dataset(
-                        "pos_doc_ids", (num_items,), dtype="int32"
-                    ),
-                    "neg_doc_ids": fp.create_dataset(
-                        "neg_doc_ids", (num_items,), dtype="int32"
-                    ),
-                }
-                for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(
-                    tqdm(self, desc="Saving pairwise training set")
-                ):
-                    ds["q_ids"][i] = q_id
-                    ds["pos_doc_ids"][i] = pos_doc_id
-                    ds["neg_doc_ids"][i] = neg_doc_id
-        else:
-            with h5py.File(dest, "w") as fp:
-                ds = {
-                    "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
-                    "doc_ids": fp.create_dataset(
-                        "doc_ids", (num_items,), dtype="int32"
-                    ),
-                    "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
-                }
-                for i, (q_id, doc_id, label) in enumerate(
-                    tqdm(self, desc="Saving pointwise training set")
-                ):
-                    ds["q_ids"][i] = q_id
-                    ds["doc_ids"][i] = doc_id
-                    ds["labels"][i] = label
+    def _create_training_data(self) -> List[Tuple[int, int, int]]:
+        """Create pointwise training data as tuples of query ID, document ID, label.
+
+        Returns:
+            List[Tuple[int, int, int]]: The training data.
+        """
+        result = []
+        # get all positives first
+        for q_id in self.train_ids:
+            num_instances = self._get_num_instances_per_positive(q_id)
+
+            positives = self._get_all_positives(q_id)
+            for doc_id in positives:
+                if self.balance_labels:
+                    result.extend([(q_id, doc_id, 1)] * num_instances)
+                else:
+                    result.append((q_id, doc_id, 1))
+
+            # sample negatives
+            negative_candidates = self._get_all_negatives(q_id)
+            # in case there are not enough candidates
+            num_neg = min(len(negative_candidates), len(positives) * num_instances)
+            if num_neg > 0:
+                for doc_id in random.sample(negative_candidates, num_neg):
+                    result.append((q_id, doc_id, 0))
+        return result
+
+    def save(self, dest: Path) -> None:
+        num_items = len(self)
+        with h5py.File(dest, "w") as fp:
+            ds = {
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "doc_ids": fp.create_dataset("doc_ids", (num_items,), dtype="int32"),
+                "labels": fp.create_dataset("labels", (num_items,), dtype="int32"),
+            }
+            for i, (q_id, doc_id, label) in enumerate(
+                tqdm(self, desc="Saving pointwise training set")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["doc_ids"][i] = doc_id
+                ds["labels"][i] = label
+
+
+class PairwiseTrainingSet(TrainingSet):
+    """A training set iterator for pairwise training instances.
+    Adapted from https://github.com/ucasir/NPRF/blob/6387db2fce30ee2b9f659ad1addfe949e6349f85/utils/pair_generator.py#L100.
+    """
+
+    def _create_training_data(self) -> List[Tuple[int, int, int]]:
+        """Create pairwise training data as tuples of query ID, positive document ID, negative document ID.
+
+        Returns:
+            List[Tuple[int, int, int]]: The training data.
+        """
+        result = []
+        for q_id in self.train_ids:
+            # available relevances sorted in ascending order
+            docs = self._get_docs_by_relevance(q_id)
+            rels = sorted(docs.keys())
+
+            num_instances = self._get_num_instances_per_positive(q_id)
+            # start at 1, as the lowest relevance can not be used as positives
+            for i, rel in enumerate(rels[1:], start=1):
+                # take all documents with lower relevance as negative candidates
+                negative_candidates = set.union(*[docs[rels[j]] for j in range(i)])
+                for positive in docs[rel]:
+                    sample_size = min(num_instances, len(negative_candidates))
+                    negatives = random.sample(negative_candidates, sample_size)
+                    result.extend(
+                        zip([q_id] * sample_size, [positive] * sample_size, negatives)
+                    )
+        return result
+
+    def save(self, dest: Path) -> None:
+        num_items = len(self)
+        with h5py.File(dest, "w") as fp:
+            ds = {
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "pos_doc_ids": fp.create_dataset(
+                    "pos_doc_ids", (num_items,), dtype="int32"
+                ),
+                "neg_doc_ids": fp.create_dataset(
+                    "neg_doc_ids", (num_items,), dtype="int32"
+                ),
+            }
+            for i, (q_id, pos_doc_id, neg_doc_id) in enumerate(
+                tqdm(self, desc="Saving pairwise training set")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["pos_doc_ids"][i] = pos_doc_id
+                ds["neg_doc_ids"][i] = neg_doc_id
+
+
+class ContrastiveTrainingSet(TrainingSet):
+    """A training set iterator for contrastive training instances."""
+
+    def __init__(
+        self,
+        train_ids: Set[int],
+        qrels: Dict[int, Dict[int, int]],
+        pools: Dict[int, Set[int]],
+        num_instances_per_positive: int,
+        balance_queries: bool,
+        num_negatives: int,
+    ) -> None:
+        """Constructor.
+
+        Args:
+            train_ids (Set[int]): Training set query IDs.
+            qrels (Dict[int, Dict[int, int]]): Query IDs mapped to document IDs mapped to relevance.
+            pools (Dict[int, Set[int]]): Query IDs mapped to top retrieved documents.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            num_negatives (int): Number of negative documents to contrast each positive.
+        """
+        self.num_negatives = num_negatives
+        super().__init__(
+            train_ids, qrels, pools, num_instances_per_positive, balance_queries
+        )
+
+    def _create_training_data(self) -> List[Tuple[int, int, List[int]]]:
+        """Create pairwise training data as tuples of query ID, positive document ID, negative document IDs.
+
+        Returns:
+            List[Tuple[int, int, List[int]]]: The training data.
+        """
+        result = []
+        for q_id in self.train_ids:
+            positives = self._get_all_positives(q_id)
+            negative_candidates = self._get_all_negatives(q_id)
+            if len(negative_candidates) < self.num_negatives:
+                LOGGER.warning(
+                    f"not enough negatives ({len(negative_candidates)}) for query {q_id}, skipping"
+                )
+                continue
+            for positive in positives:
+                for _ in range(self._get_num_instances_per_positive(q_id)):
+                    result.append(
+                        (
+                            q_id,
+                            positive,
+                            random.sample(negative_candidates, self.num_negatives),
+                        )
+                    )
+        return result
+
+    def save(self, dest: Path) -> None:
+        num_items = len(self)
+        with h5py.File(dest, "w") as fp:
+            ds = {
+                "q_ids": fp.create_dataset("q_ids", (num_items,), dtype="int32"),
+                "pos_doc_ids": fp.create_dataset(
+                    "pos_doc_ids", (num_items,), dtype="int32"
+                ),
+                "neg_doc_ids": fp.create_dataset(
+                    "neg_doc_ids", (num_items * self.num_negatives,), dtype="int32"
+                ),
+            }
+            for i, (q_id, pos_doc_id, neg_doc_ids) in enumerate(
+                tqdm(self, desc="Saving contrastive training set")
+            ):
+                ds["q_ids"][i] = q_id
+                ds["pos_doc_ids"][i] = pos_doc_id
+                for j, neg_doc_id in enumerate(neg_doc_ids):
+                    ds["neg_doc_ids"][i * self.num_negatives + j] = neg_doc_id
+            ds["neg_doc_ids"].attrs["num_negatives"] = self.num_negatives
 
 
 class ValTestSet(object):
@@ -404,35 +517,81 @@ class Dataset(object):
 
         self.folds.append((train_ids, val_ids, test_ids))
 
-    def get_training_set(
+    def get_pointwise_training_set(
         self,
         fold: int,
-        num_negatives: int,
-        balance_labels: bool,
+        num_instances_per_positive: int,
         balance_queries: bool,
-        pairwise: bool = False,
-    ) -> TrainingSet:
-        """Training set iterator for a given fold.
+        balance_labels: bool,
+    ) -> PointwiseTrainingSet:
+        """Pointwise training set iterator for a given fold.
 
         Args:
             fold (int): Fold ID.
-            num_negatives (int): Number of negative documents to sample for each positive.
-            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
+            num_instances_per_positive (int): Number of training instances for each relevant document.
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
-            pairwise (bool, optional): Yield pairwise training data. Defaults to False.
+            balance_labels (bool): Whether to balance the total number of positives and negatives.
 
         Returns:
-            TrainingSet: The training set.
+            PointwiseTrainingSet: The training set.
         """
-        train_ids = self.folds[fold][0]
-        return TrainingSet(
-            train_ids,
+        return PointwiseTrainingSet(
+            self.folds[fold][0],
             self.qrels,
             self.pools,
-            num_negatives,
-            balance_labels,
+            num_instances_per_positive,
             balance_queries,
-            pairwise,
+            balance_labels,
+        )
+
+    def get_pairwise_training_set(
+        self,
+        fold: int,
+        num_instances_per_positive: int,
+        balance_queries: bool,
+    ) -> PairwiseTrainingSet:
+        """Pairwise training set iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+
+        Returns:
+            PairwiseTrainingSet: The training set.
+        """
+        return PairwiseTrainingSet(
+            self.folds[fold][0],
+            self.qrels,
+            self.pools,
+            num_instances_per_positive,
+            balance_queries,
+        )
+
+    def get_contrastive_training_set(
+        self,
+        fold: int,
+        num_instances_per_positive: int,
+        balance_queries: bool,
+        num_negatives: int,
+    ) -> ContrastiveTrainingSet:
+        """Contrastive training set iterator for a given fold.
+
+        Args:
+            fold (int): Fold ID.
+            num_instances_per_positive (int): Number of training instances for each relevant document.
+            balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            num_negatives (int): Number of negative documents to contrast each positive.
+        Returns:
+            ContrastiveTrainingSet: The training set.
+        """
+        return ContrastiveTrainingSet(
+            self.folds[fold][0],
+            self.qrels,
+            self.pools,
+            num_instances_per_positive,
+            balance_queries,
+            num_negatives,
         )
 
     def get_val_set(self, fold: int) -> ValTestSet:
@@ -506,17 +665,19 @@ class Dataset(object):
     def save(
         self,
         target_dir: Path,
-        num_negatives: int,
-        balance_labels: bool,
+        num_instances_per_positive: int,
         balance_queries: bool,
+        balance_labels: bool,
+        num_negatives: int,
     ) -> None:
         """Save the collection, QRels and all folds of training, validation and test set.
 
         Args:
             target_dir (Path): Where to save the files
-            num_negatives (int): Number of negative documents to sample for each positive.
-            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise training).
+            num_instances_per_positive (int): Number of training instances for each relevant document.
             balance_queries (bool): Whether to balance the total number of instances for each query based on its number of positives.
+            balance_labels (bool): Whether to balance the total number of positives and negatives (pointwise).
+            num_negatives (int): Number of negative documents to contrast each positive (contrastive).
         """
         target_dir.mkdir(parents=True, exist_ok=True)
         self.save_collection(target_dir / "data.h5")
@@ -524,12 +685,15 @@ class Dataset(object):
         for fold in range(len(self.folds)):
             fold_dir = target_dir / f"fold_{fold}"
             fold_dir.mkdir(parents=True, exist_ok=True)
-            self.get_training_set(
-                fold, num_negatives, balance_labels, balance_queries, pairwise=False
+            self.get_pointwise_training_set(
+                fold, num_instances_per_positive, balance_queries, balance_labels
             ).save(fold_dir / "train_pointwise.h5")
-            self.get_training_set(
-                fold, num_negatives, balance_labels, balance_queries, pairwise=True
+            self.get_pairwise_training_set(
+                fold, num_instances_per_positive, balance_queries
             ).save(fold_dir / "train_pairwise.h5")
+            self.get_contrastive_training_set(
+                fold, num_instances_per_positive, balance_queries, num_negatives
+            ).save(fold_dir / "train_contrastive.h5")
             self.get_val_set(fold).save(fold_dir / "val.h5")
             self.get_test_set(fold).save(fold_dir / "test.h5")
 

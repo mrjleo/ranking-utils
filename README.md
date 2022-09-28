@@ -64,9 +64,14 @@ data_module = H5DataModule(
 )
 model = MyRanker(...)
 data_module.training_mode = model.training_mode = TrainingMode.PAIRWISE
-model.pairwise_loss_margin = 0.2
+model.margin = 0.2
 Trainer(...).fit(model=model, datamodule=data_module)
 ```
+
+The following training modes are supported:
+* `TrainingMode.POINTWISE`
+* `TrainingMode.PAIRWISE`
+* `TrainingMode.CONTRASTIVE`
 
 #### Validation
 After each epoch, the ranker automatically computes the following ranking metrics on the validation set:

@@ -12,12 +12,7 @@ from pytorch_lightning import seed_everything
 @hydra.main(config_path="config", config_name="create_h5_data")
 def main(config: DictConfig) -> None:
     seed_everything(config.random_seed)
-    instantiate(config.dataset).save(
-        Path.cwd(),
-        config.training.num_negatives,
-        config.training.balance_labels,
-        config.training.balance_queries,
-    )
+    instantiate(config.dataset).save(Path.cwd(), **config.training)
 
 
 if __name__ == "__main__":

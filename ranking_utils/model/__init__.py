@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Iterable, Tuple, Union
+from typing import Any, Dict, Iterable, List, Tuple, Union
 
 import torch
 from pytorch_lightning import LightningModule
@@ -12,18 +12,30 @@ from torchmetrics import (
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
+ContrastiveTrainingInstance = Tuple[str, str, List[str]]
+TrainingInstance = Union[
+    PointwiseTrainingInstance, PairwiseTrainingInstance, ContrastiveTrainingInstance
+]
 ValTestInstance = Tuple[str, str, int, int]
 PredictionInstance = Tuple[int, str, str]
 
 ModelInput = Any
 PointwiseTrainingInput = Tuple[ModelInput, int, int]
 PairwiseTrainingInput = Tuple[ModelInput, ModelInput, int]
+ContrastiveTrainingInput = Tuple[ModelInput, List[ModelInput], int]
+TrainingInput = Union[
+    PointwiseTrainingInput, PairwiseTrainingInput, ContrastiveTrainingInput
+]
 ValTestInput = Tuple[ModelInput, int, int]
 PredictionInput = Tuple[int, ModelInput]
 
 ModelBatch = Any
 PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch, torch.Tensor]
+ContrastiveTrainingBatch = Tuple[ModelBatch, ModelBatch, torch.Tensor]
+TrainingBatch = Union[
+    PointwiseTrainingBatch, PairwiseTrainingBatch, ContrastiveTrainingBatch
+]
 ValTestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PredictionBatch = Tuple[torch.Tensor, ModelBatch]
 
@@ -33,6 +45,7 @@ class TrainingMode(Enum):
 
     POINTWISE = 0
     PAIRWISE = 1
+    CONTRASTIVE = 2
 
 
 class Ranker(LightningModule):
@@ -45,36 +58,41 @@ class Ranker(LightningModule):
     def __init__(
         self,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
-        pairwise_loss_margin: float = 1.0,
+        margin: float = 1.0,
+        in_batch_negatives: bool = True,
     ) -> None:
         """Constructor.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
-            pairwise_loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
+            margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
+            in_batch_negatives (bool, optional): Whether to enable in-batch negatives for contrastive training. Defaults to True.
         """
         super().__init__()
         self.training_mode = training_mode
-        self.pairwise_loss_margin = pairwise_loss_margin
+        self.margin = margin
+        self.in_batch_negatives = in_batch_negatives
         self.bce = torch.nn.BCEWithLogitsLoss()
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics], prefix="val_",
+            [M(compute_on_step=False) for M in metrics],
+            prefix="val_",
         )
         self.test_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics], prefix="test_",
+            [M(compute_on_step=False) for M in metrics],
+            prefix="test_",
         )
 
     def training_step(
         self,
-        batch: Union[PointwiseTrainingBatch, PairwiseTrainingBatch],
+        batch: TrainingBatch,
         batch_idx: int,
     ) -> torch.Tensor:
         """Train a single batch.
 
         Args:
-            batch (Union[PointwiseTrainingBatch, PairwiseTrainingBatch]): A training batch.
+            batch (TrainingBatch): A training batch.
             batch_idx (int): Batch index.
 
         Returns:
@@ -88,10 +106,28 @@ class Ranker(LightningModule):
             pos_outputs = torch.sigmoid(self(pos_model_batch))
             neg_outputs = torch.sigmoid(self(neg_model_batch))
             loss = torch.mean(
-                torch.clamp(
-                    self.pairwise_loss_margin - pos_outputs + neg_outputs, min=0
-                )
+                torch.clamp(self.margin - pos_outputs + neg_outputs, min=0)
             )
+        else:
+            assert self.training_mode == TrainingMode.CONTRASTIVE
+            pos_model_batch, neg_model_batch, _ = batch
+            pos_outputs = torch.exp(torch.sigmoid(self(pos_model_batch)))
+            neg_outputs = torch.exp(torch.sigmoid(self(neg_model_batch)))
+
+            if self.in_batch_negatives:
+                # divide each positive score by all scores
+                all_scores = pos_outputs.sum(0) + neg_outputs.sum(0)
+                contrastive_loss = -torch.log(
+                    pos_outputs / all_scores.repeat(pos_outputs.shape[0])
+                )
+            else:
+                # split into individual negatives for each instance
+                # divide each positive score by itself and the corresponding negatives
+                neg_outputs_split = neg_outputs.reshape((pos_outputs.shape[0], -1, 1))
+                contrastive_loss = -torch.log(
+                    pos_outputs / (pos_outputs + neg_outputs_split.sum(1))
+                )
+            loss = torch.mean(contrastive_loss.flatten())
 
         self.log("train_loss", loss)
         return loss
