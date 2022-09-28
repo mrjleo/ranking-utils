@@ -58,19 +58,19 @@ class Ranker(LightningModule):
     def __init__(
         self,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
-        pairwise_loss_margin: float = 1.0,
+        margin: float = 1.0,
         in_batch_negatives: bool = True,
     ) -> None:
         """Constructor.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
-            pairwise_loss_margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
+            margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
             in_batch_negatives (bool, optional): Whether to enable in-batch negatives for contrastive training. Defaults to True.
         """
         super().__init__()
         self.training_mode = training_mode
-        self.pairwise_loss_margin = pairwise_loss_margin
+        self.margin = margin
         self.in_batch_negatives = in_batch_negatives
         self.bce = torch.nn.BCEWithLogitsLoss()
 
@@ -106,9 +106,7 @@ class Ranker(LightningModule):
             pos_outputs = torch.sigmoid(self(pos_model_batch))
             neg_outputs = torch.sigmoid(self(neg_model_batch))
             loss = torch.mean(
-                torch.clamp(
-                    self.pairwise_loss_margin - pos_outputs + neg_outputs, min=0
-                )
+                torch.clamp(self.margin - pos_outputs + neg_outputs, min=0)
             )
         else:
             assert self.training_mode == TrainingMode.CONTRASTIVE
@@ -129,7 +127,6 @@ class Ranker(LightningModule):
                 contrastive_loss = -torch.log(
                     pos_outputs / (pos_outputs + neg_outputs_split.sum(1))
                 )
-
             loss = torch.mean(contrastive_loss.flatten())
 
         self.log("train_loss", loss)
