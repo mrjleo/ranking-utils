@@ -1,5 +1,6 @@
 import abc
 import csv
+import logging
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import Any, Dict, Iterable, List, Set, Tuple, Union
 import h5py
 import numpy as np
 from tqdm import tqdm
+
+LOGGER = logging.getLogger(__name__)
 
 
 class TrainingSet(abc.ABC):
@@ -326,10 +329,14 @@ class ContrastiveTrainingSet(TrainingSet):
         result = []
         for q_id in self.train_ids:
             positives = self._get_all_positives(q_id)
+            negative_candidates = self._get_all_negatives(q_id)
+            if len(negative_candidates) < self.num_negatives:
+                LOGGER.warning(
+                    f"not enough negatives ({len(negative_candidates)}) for query {q_id}, skipping"
+                )
+                continue
             for positive in positives:
-                negative_candidates = self._get_all_negatives(q_id)
                 for _ in range(self._get_num_instances_per_positive(q_id)):
-                    assert len(negative_candidates) >= self.num_negatives
                     result.append(
                         (
                             q_id,
