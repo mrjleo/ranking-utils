@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Iterable, Tuple, Union
+from typing import Any, Dict, Iterable, List, Tuple, Union
 
 import torch
 from pytorch_lightning import LightningModule
@@ -12,18 +12,30 @@ from torchmetrics import (
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
+ContrastiveTrainingInstance = Tuple[str, str, List[str]]
+TrainingInstance = Union[
+    PointwiseTrainingInstance, PairwiseTrainingInstance, ContrastiveTrainingInstance
+]
 ValTestInstance = Tuple[str, str, int, int]
 PredictionInstance = Tuple[int, str, str]
 
 ModelInput = Any
 PointwiseTrainingInput = Tuple[ModelInput, int, int]
 PairwiseTrainingInput = Tuple[ModelInput, ModelInput, int]
+ContrastiveTrainingInput = Tuple[ModelInput, List[ModelInput], int]
+TrainingInput = Union[
+    PointwiseTrainingInput, PairwiseTrainingInput, ContrastiveTrainingInput
+]
 ValTestInput = Tuple[ModelInput, int, int]
 PredictionInput = Tuple[int, ModelInput]
 
 ModelBatch = Any
 PointwiseTrainingBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PairwiseTrainingBatch = Tuple[ModelBatch, ModelBatch, torch.Tensor]
+ContrastiveTrainingBatch = Tuple[ModelBatch, ModelBatch, torch.Tensor]
+TrainingBatch = Union[
+    PointwiseTrainingBatch, PairwiseTrainingBatch, ContrastiveTrainingBatch
+]
 ValTestBatch = Tuple[ModelBatch, torch.Tensor, torch.Tensor]
 PredictionBatch = Tuple[torch.Tensor, ModelBatch]
 
@@ -33,6 +45,7 @@ class TrainingMode(Enum):
 
     POINTWISE = 0
     PAIRWISE = 1
+    CONTRASTIVE = 2
 
 
 class Ranker(LightningModule):
@@ -60,21 +73,23 @@ class Ranker(LightningModule):
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics], prefix="val_",
+            [M(compute_on_step=False) for M in metrics],
+            prefix="val_",
         )
         self.test_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics], prefix="test_",
+            [M(compute_on_step=False) for M in metrics],
+            prefix="test_",
         )
 
     def training_step(
         self,
-        batch: Union[PointwiseTrainingBatch, PairwiseTrainingBatch],
+        batch: TrainingBatch,
         batch_idx: int,
     ) -> torch.Tensor:
         """Train a single batch.
 
         Args:
-            batch (Union[PointwiseTrainingBatch, PairwiseTrainingBatch]): A training batch.
+            batch (TrainingBatch): A training batch.
             batch_idx (int): Batch index.
 
         Returns:
@@ -92,6 +107,17 @@ class Ranker(LightningModule):
                     self.pairwise_loss_margin - pos_outputs + neg_outputs, min=0
                 )
             )
+        else:
+            assert self.training_mode == TrainingMode.CONTRASTIVE
+            pos_model_batch, neg_model_batch, _ = batch
+            pos_outputs = torch.exp(torch.sigmoid(self(pos_model_batch)))
+            neg_outputs = torch.exp(torch.sigmoid(self(neg_model_batch)))
+
+            # split into individual negatives for each instance
+            neg_outputs = neg_outputs.reshape((pos_outputs.shape[0], -1, 1)).sum(1)
+
+            contrastive_loss = pos_outputs / (pos_outputs + neg_outputs)
+            loss = torch.mean(contrastive_loss.flatten())
 
         self.log("train_loss", loss)
         return loss

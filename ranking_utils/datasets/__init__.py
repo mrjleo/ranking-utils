@@ -358,6 +358,7 @@ class ContrastiveTrainingSet(TrainingSet):
                 ds["pos_doc_ids"][i] = pos_doc_id
                 for j, neg_doc_id in enumerate(neg_doc_ids):
                     ds["neg_doc_ids"][i * self.num_negatives + j] = neg_doc_id
+            ds["neg_doc_ids"].attrs["num_negatives"] = self.num_negatives
 
 
 class ValTestSet(object):

@@ -16,4 +16,4 @@ training:
   balance_labels: True
 
   # Number of negative documents to contrast each positive (contrastive).
-  num_negatives: 16
+  num_negatives: 8

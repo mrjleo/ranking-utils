@@ -8,6 +8,7 @@ from typing import Iterator, Optional, Tuple, Union
 import h5py
 from pytorch_lightning import LightningDataModule
 from ranking_utils.model import (
+    ContrastiveTrainingInstance,
     PairwiseTrainingInstance,
     PointwiseTrainingInstance,
     PredictionInstance,
@@ -56,6 +57,10 @@ class H5TrainingDataset(TrainingDataset):
         with h5py.File(self.train_file, "r") as fp:
             return len(fp["q_ids"])
 
+    def _num_contrastive_instances(self) -> int:
+        with h5py.File(self.train_file, "r") as fp:
+            return len(fp["q_ids"])
+
     def _get_pointwise_instance(self, index: int) -> PointwiseTrainingInstance:
         with h5py.File(self.train_file, "r") as fp:
             q_id = fp["q_ids"][index]
@@ -76,6 +81,20 @@ class H5TrainingDataset(TrainingDataset):
             pos_doc = fp["docs"].asstr()[pos_doc_id]
             neg_doc = fp["docs"].asstr()[neg_doc_id]
         return query, pos_doc, neg_doc
+
+    def _get_contrastive_instance(self, index: int) -> ContrastiveTrainingInstance:
+        with h5py.File(self.train_file, "r") as fp:
+            num_negatives = fp["neg_doc_ids"].attrs["num_negatives"]
+            q_id = fp["q_ids"][index]
+            pos_doc_id = fp["pos_doc_ids"][index]
+            neg_doc_ids = fp["neg_doc_ids"][
+                index * num_negatives : (index + 1) * num_negatives
+            ]
+        with h5py.File(self.data_file, "r") as fp:
+            query = fp["queries"].asstr()[q_id]
+            pos_doc = fp["docs"].asstr()[pos_doc_id]
+            neg_docs = [fp["docs"].asstr()[neg_doc_id] for neg_doc_id in neg_doc_ids]
+        return query, pos_doc, neg_docs
 
 
 class H5ValTestDataset(ValTestDataset):
@@ -240,8 +259,11 @@ class H5DataModule(LightningDataModule):
             data_dir = Path(data_dir)
 
         self.data_file = data_dir / "data.h5"
-        self.train_file_pointwise = data_dir / fold_name / "train_pointwise.h5"
-        self.train_file_pairwise = data_dir / fold_name / "train_pairwise.h5"
+        self.train_files = {
+            TrainingMode.POINTWISE: data_dir / fold_name / "train_pointwise.h5",
+            TrainingMode.PAIRWISE: data_dir / fold_name / "train_pairwise.h5",
+            TrainingMode.CONTRASTIVE: data_dir / fold_name / "train_contrastive.h5",
+        }
         self.val_file = data_dir / fold_name / "val.h5"
         self.test_file = data_dir / fold_name / "test.h5"
 
@@ -258,9 +280,7 @@ class H5DataModule(LightningDataModule):
         """
         ds = H5TrainingDataset(
             self.data_file,
-            self.train_file_pointwise
-            if self.training_mode == TrainingMode.POINTWISE
-            else self.train_file_pairwise,
+            self.train_files[self.training_mode],
             self.data_processor,
             self.training_mode,
         )
