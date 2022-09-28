@@ -4,15 +4,11 @@ from typing import Iterable, Iterator, Tuple, Union
 
 import torch
 from ranking_utils.model import (
-    ContrastiveTrainingBatch,
-    ContrastiveTrainingInput,
     ContrastiveTrainingInstance,
     ModelBatch,
     ModelInput,
-    PairwiseTrainingBatch,
     PairwiseTrainingInput,
     PairwiseTrainingInstance,
-    PointwiseTrainingBatch,
     PointwiseTrainingInput,
     PointwiseTrainingInstance,
     PredictionBatch,
@@ -20,7 +16,6 @@ from ranking_utils.model import (
     PredictionInstance,
     TrainingBatch,
     TrainingInput,
-    TrainingInstance,
     TrainingMode,
     ValTestBatch,
     ValTestInput,

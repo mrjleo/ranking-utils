@@ -2,7 +2,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from re import I
 from typing import Iterator, Optional, Tuple, Union
 
 import h5py
