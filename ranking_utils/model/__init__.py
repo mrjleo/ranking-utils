@@ -59,19 +59,16 @@ class Ranker(LightningModule):
         self,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         margin: float = 1.0,
-        in_batch_negatives: bool = True,
     ) -> None:
         """Constructor.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.
             margin (float, optional): Margin used in pairwise loss. Defaults to 1.0.
-            in_batch_negatives (bool, optional): Whether to enable in-batch negatives for contrastive training. Defaults to True.
         """
         super().__init__()
         self.training_mode = training_mode
         self.margin = margin
-        self.in_batch_negatives = in_batch_negatives
         self.bce = torch.nn.BCEWithLogitsLoss()
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
@@ -114,19 +111,12 @@ class Ranker(LightningModule):
             pos_outputs = torch.exp(torch.sigmoid(self(pos_model_batch)))
             neg_outputs = torch.exp(torch.sigmoid(self(neg_model_batch)))
 
-            if self.in_batch_negatives:
-                # divide each positive score by all scores
-                all_scores = pos_outputs.sum(0) + neg_outputs.sum(0)
-                contrastive_loss = -torch.log(
-                    pos_outputs / all_scores.repeat(pos_outputs.shape[0])
-                )
-            else:
-                # split into individual negatives for each instance
-                # divide each positive score by itself and the corresponding negatives
-                neg_outputs_split = neg_outputs.reshape((pos_outputs.shape[0], -1, 1))
-                contrastive_loss = -torch.log(
-                    pos_outputs / (pos_outputs + neg_outputs_split.sum(1))
-                )
+            # split into individual negatives for each instance
+            # divide each positive score by itself and the corresponding negatives
+            neg_outputs_split = neg_outputs.reshape((pos_outputs.shape[0], -1, 1))
+            contrastive_loss = -torch.log(
+                pos_outputs / (pos_outputs + neg_outputs_split.sum(1))
+            )
             loss = torch.mean(contrastive_loss.flatten())
 
         self.log("train_loss", loss)
