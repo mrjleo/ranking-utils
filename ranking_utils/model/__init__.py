@@ -108,12 +108,12 @@ class Ranker(LightningModule):
         else:
             assert self.training_mode == TrainingMode.CONTRASTIVE
             pos_model_batch, neg_model_batch, _ = batch
-            pos_outputs = torch.exp(torch.sigmoid(self(pos_model_batch)))
+            pos_outputs = torch.exp(torch.sigmoid(self(pos_model_batch))).squeeze(-1)
             neg_outputs = torch.exp(torch.sigmoid(self(neg_model_batch)))
 
             # split into individual negatives for each instance
             # divide each positive score by itself and the corresponding negatives
-            neg_outputs_split = neg_outputs.reshape((pos_outputs.shape[0], -1, 1))
+            neg_outputs_split = neg_outputs.reshape((pos_outputs.shape[0], -1))
             contrastive_loss = -torch.log(
                 pos_outputs / (pos_outputs + neg_outputs_split.sum(1))
             )
