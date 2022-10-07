@@ -1,6 +1,6 @@
 import csv
 import logging
-import sys
+import ctypes
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
@@ -10,7 +10,8 @@ from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
 from tqdm import tqdm
 
 # some documents are longer than the default limit
-csv.field_size_limit(sys.maxsize)
+max_long = 2 ** (8*ctypes.sizeof(ctypes.c_long) - 1) - 1
+csv.field_size_limit(max_long)
 
 
 LOGGER = logging.getLogger(__name__)
