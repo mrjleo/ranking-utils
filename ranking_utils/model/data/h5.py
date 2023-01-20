@@ -303,7 +303,7 @@ class H5DataModule(LightningDataModule):
         elif isinstance(subset, int):
             indices = range(subset)
         elif isinstance(subset, float):
-            indices = range(len(dataset)*subset)
+            indices = range(int(len(dataset)*subset))
         return Subset(dataset, indices)
 
     def train_dataloader(self) -> DataLoader:
