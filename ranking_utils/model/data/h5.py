@@ -6,6 +6,9 @@ from typing import Iterator, Optional, Tuple, Union
 
 import h5py
 from pytorch_lightning import LightningDataModule
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from ranking_utils.model import (
     ContrastiveTrainingInstance,
     PairwiseTrainingInstance,
@@ -19,9 +22,8 @@ from ranking_utils.model.data import (
     PredictionDataset,
     TrainingDataset,
     ValTestDataset,
+    subset_dataset,
 )
-from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 LOGGER = logging.getLogger(__name__)
 
@@ -241,6 +243,9 @@ class H5DataModule(LightningDataModule):
         batch_size: int,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         num_workers: int = 16,
+        limit_train_set: Union[int, float, None] = None,
+        limit_val_set: Union[int, float, None] = None,
+        limit_test_set: Union[int, float, None] = None,
     ) -> None:
         """Constructor.
 
@@ -251,6 +256,14 @@ class H5DataModule(LightningDataModule):
             batch_size (int): The batch size to use.
             training_mode (TrainingMode, optional): The training mode to use. Defaults to TrainingMode.POINTWISE.
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
+            limit_train_set (Union[int, float], optional): loads only a subset of the training set. If an integer is
+                passed, it indicates that only the first `limit_train_set` entries in the training set should be used.
+                If a float is parsed, it indicates that only the first `|train_set|*limit_train_set` entries in the
+                training set should be used. E.g., limit_train_set=100 indicates to train on 100 dataset entries (or
+                less if the dataset does not have enough entries), whereas limit_train_set=.5 indicates to train on 50%
+                of the dataset. Passing None will train on the entire dataset (this is the default).
+            limit_val_set (Union[int, float], optional): see limit_train_set for more information.
+            limit_test_set (Union[int, float], optional): see limit_train_set for more information.
         """
         super().__init__()
 
@@ -271,6 +284,10 @@ class H5DataModule(LightningDataModule):
         self.training_mode = training_mode
         self.num_workers = num_workers
 
+        self.limit_train_set = limit_train_set
+        self.limit_val_set = limit_val_set
+        self.limit_test_set = limit_test_set
+
     def train_dataloader(self) -> DataLoader:
         """Return a training DataLoader.
 
@@ -284,7 +301,7 @@ class H5DataModule(LightningDataModule):
             self.training_mode,
         )
         return DataLoader(
-            ds,
+            subset_dataset(ds, self.limit_train_set),
             shuffle=True,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
@@ -302,7 +319,7 @@ class H5DataModule(LightningDataModule):
 
         ds = H5ValTestDataset(self.data_file, self.val_file, self.data_processor)
         return DataLoader(
-            ds,
+            subset_dataset(ds, self.limit_val_set),
             shuffle=False,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
@@ -320,7 +337,7 @@ class H5DataModule(LightningDataModule):
 
         ds = H5ValTestDataset(self.data_file, self.test_file, self.data_processor)
         return DataLoader(
-            ds,
+            subset_dataset(ds, self.limit_test_set),
             shuffle=False,
             batch_size=self.batch_size,
             num_workers=self.num_workers,

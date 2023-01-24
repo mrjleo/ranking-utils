@@ -3,6 +3,8 @@ import itertools
 from typing import Iterable, Iterator, Tuple, Union
 
 import torch
+from torch.utils.data import Dataset, Subset
+
 from ranking_utils.model import (
     ContrastiveTrainingInstance,
     ModelBatch,
@@ -21,13 +23,33 @@ from ranking_utils.model import (
     ValTestInput,
     ValTestInstance,
 )
-from torch.utils.data import Dataset
 
 TrainingInputs = Union[
     Iterable[PointwiseTrainingInput],
     Iterable[PairwiseTrainingInput],
     Iterable[PointwiseTrainingInput],
 ]
+
+
+def subset_dataset(dataset: Dataset, subset: Union[int, float, None]) -> Dataset:
+    """Subsets the dataset
+
+    Args:
+        dataset (Dataset): the dataset that should be subsetted
+        subset (Union[int, float, None]): specifies how the data is subset. Passing None will not performing any
+            subsetting. Passing an int will limit the dataset to its first `subset` entries and passing a float will
+            limit it to the first `|dataset|*subset` entries.
+
+    Returns:
+        Dataset: The subsetted dataset
+    """
+    if subset is None:
+        return dataset
+    elif isinstance(subset, int):
+        indices = range(subset)
+    elif isinstance(subset, float):
+        indices = range(int(len(dataset) * subset))
+    return Subset(dataset, indices)
 
 
 class DataProcessor(abc.ABC):
