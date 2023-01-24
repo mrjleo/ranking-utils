@@ -260,8 +260,8 @@ class H5DataModule(LightningDataModule):
                 passed, it indicates that only the first `limit_train_set` entries in the training set should be used.
                 If a float is parsed, it indicates that only the first `|train_set|*limit_train_set` entries in the
                 training set should be used. E.g., limit_train_set=100 indicates to train on 100 dataset entries (or
-                less if the dataset does not have enough entries), whereas train_set=.5 indicates to train on 50% of the
-                dataset. Passing None will train on the entire dataset (this is the default).
+                less if the dataset does not have enough entries), whereas limit_train_set=.5 indicates to train on 50%
+                of the dataset. Passing None will train on the entire dataset (this is the default).
             limit_val_set (Union[int, float], optional): see limit_train_set for more information.
             limit_test_set (Union[int, float], optional): see limit_train_set for more information.
         """
