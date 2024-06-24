@@ -267,7 +267,7 @@ class PairwiseTrainingSet(TrainingSet):
                 negative_candidates = set.union(*[docs[rels[j]] for j in range(i)])
                 for positive in docs[rel]:
                     sample_size = min(num_instances, len(negative_candidates))
-                    negatives = random.sample(negative_candidates, sample_size)
+                    negatives = random.sample(tuple(negative_candidates), sample_size)
                     result.extend(
                         zip([q_id] * sample_size, [positive] * sample_size, negatives)
                     )
