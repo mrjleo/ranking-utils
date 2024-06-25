@@ -214,9 +214,10 @@ class H5PredictionDataset(PredictionDataset):
         return index, query, doc
 
     def ids(self) -> Iterator[Tuple[int, str, str]]:
-        with h5py.File(self.data_file, "r") as fp_data, h5py.File(
-            self.pred_file, "r"
-        ) as fp_pred:
+        with (
+            h5py.File(self.data_file, "r") as fp_data,
+            h5py.File(self.pred_file, "r") as fp_pred,
+        ):
             for i in range(len(self)):
                 q_id = fp_pred["q_ids"][i]
                 doc_id = fp_pred["doc_ids"][i]
@@ -306,6 +307,7 @@ class H5DataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             collate_fn=ds.collate_fn,
+            persistent_workers=True,
         )
 
     def val_dataloader(self) -> Optional[DataLoader]:
@@ -324,6 +326,7 @@ class H5DataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             collate_fn=ds.collate_fn,
+            persistent_workers=True,
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
@@ -342,4 +345,5 @@ class H5DataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             collate_fn=ds.collate_fn,
+            persistent_workers=True,
         )
