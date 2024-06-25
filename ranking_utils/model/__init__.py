@@ -70,11 +70,11 @@ class Ranker(LightningModule):
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
             [M() for M in metrics],
-            prefix="val",
+            prefix="val_",
         )
         self.test_metrics = MetricCollection(
             [M() for M in metrics],
-            prefix="test",
+            prefix="test_",
         )
 
     def training_step(
@@ -126,8 +126,19 @@ class Ranker(LightningModule):
             batch_idx (int): Batch index.
         """
         model_batch, q_ids, labels = batch
-        self.val_metrics(
-            self(model_batch).flatten(),
+        predictions = self(model_batch).flatten()
+        self.val_metrics["RetrievalMAP"](
+            predictions,
+            labels > 0,
+            indexes=q_ids,
+        )
+        self.val_metrics["RetrievalMRR"](
+            predictions,
+            labels > 0,
+            indexes=q_ids,
+        )
+        self.val_metrics["RetrievalNormalizedDCG"](
+            predictions,
             labels,
             indexes=q_ids,
         )
@@ -145,8 +156,19 @@ class Ranker(LightningModule):
             batch_idx (int): Batch index.
         """
         model_batch, q_ids, labels = batch
-        self.test_metrics(
-            self(model_batch).flatten(),
+        predictions = self(model_batch).flatten()
+        self.test_metrics["RetrievalMAP"](
+            predictions,
+            labels > 0,
+            indexes=q_ids,
+        )
+        self.test_metrics["RetrievalMRR"](
+            predictions,
+            labels > 0,
+            indexes=q_ids,
+        )
+        self.test_metrics["RetrievalNormalizedDCG"](
+            predictions,
             labels,
             indexes=q_ids,
         )

@@ -391,8 +391,7 @@ class ValTestSet(object):
         self.items = []
         for q_id in self.ids:
             for doc_id in self.pools[q_id]:
-                label = 1 if self.qrels[q_id].get(doc_id, 0) > 0 else 0
-                self.items.append((q_id, doc_id, label))
+                self.items.append((q_id, doc_id, self.qrels[q_id].get(doc_id, 0)))
 
     def __len__(self) -> int:
         """Dataset length.
