@@ -1,16 +1,17 @@
 import csv
-import logging
 import ctypes
+import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
-from ranking_utils.datasets import ParsableDataset
-from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
 from tqdm import tqdm
 
+from ranking_utils.datasets import ParsableDataset
+from ranking_utils.datasets.trec import read_qrels_trec, read_top_trec
+
 # some documents are longer than the default limit
-max_long = 2 ** (8*ctypes.sizeof(ctypes.c_long) - 1) - 1
+max_long = 2 ** (8 * ctypes.sizeof(ctypes.c_long) - 1) - 1
 csv.field_size_limit(max_long)
 
 
