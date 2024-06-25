@@ -1,8 +1,9 @@
 import csv
+import importlib.metadata
 from pathlib import Path
 from typing import Dict
 
-__version__ = "0.1.0"
+__version__ = importlib.metadata.version("ranking-utils")
 
 
 def write_trec_eval_file(

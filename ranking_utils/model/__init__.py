@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 from pytorch_lightning import LightningModule
@@ -73,12 +73,12 @@ class Ranker(LightningModule):
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics],
-            prefix="val_",
+            [M() for M in metrics],
+            prefix="val",
         )
         self.test_metrics = MetricCollection(
-            [M(compute_on_step=False) for M in metrics],
-            prefix="test_",
+            [M() for M in metrics],
+            prefix="test",
         )
 
     def training_step(
@@ -122,78 +122,42 @@ class Ranker(LightningModule):
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(
-        self, batch: ValTestBatch, batch_idx: int
-    ) -> Dict[str, torch.Tensor]:
-        """Process a validation batch. The returned query IDs are internal IDs.
+    def validation_step(self, batch: ValTestBatch, batch_idx: int) -> None:
+        """Process a validation batch and update metrics.
 
         Args:
             batch (ValTestBatch): A validation batch.
             batch_idx (int): Batch index.
-
-        Returns:
-            Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
         model_batch, q_ids, labels = batch
-        return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
-
-    def validation_step_end(self, step_results: Dict[str, torch.Tensor]) -> None:
-        """Update the validation metrics.
-
-        Args:
-            step_results (Dict[str, torch.Tensor]): Results from a validation step.
-        """
         self.val_metrics(
-            step_results["scores"],
-            step_results["labels"],
-            indexes=step_results["q_ids"],
+            self(model_batch).flatten(),
+            labels,
+            indexes=q_ids,
         )
 
-    def validation_epoch_end(
-        self, val_results: Iterable[Dict[str, torch.Tensor]]
-    ) -> None:
-        """Compute validation metrics.
-
-        Args:
-            val_results (Iterable[Dict[str, torch.Tensor]]): Results of the validation steps.
-        """
-        for metric, value in self.val_metrics.compute().items():
-            self.log(metric, value, sync_dist=True)
+    def on_validation_epoch_end(self) -> None:
+        """Compute and log validation metrics."""
+        self.log_dict(self.val_metrics.compute(), sync_dist=True)
         self.val_metrics.reset()
 
-    def test_step(self, batch: ValTestBatch, batch_idx: int) -> Dict[str, torch.Tensor]:
-        """Process a test batch. The returned query IDs are internal IDs.
+    def test_step(self, batch: ValTestBatch, batch_idx: int) -> None:
+        """Process a test batch and update metrics.
 
         Args:
             batch (ValTestBatch): A validation batch.
             batch_idx (int): Batch index.
-
-        Returns:
-            Dict[str, torch.Tensor]: Query IDs, scores and labels.
         """
         model_batch, q_ids, labels = batch
-        return {"q_ids": q_ids, "scores": self(model_batch).flatten(), "labels": labels}
-
-    def test_step_end(self, step_results: Dict[str, torch.Tensor]) -> None:
-        """Update the test metrics.
-
-        Args:
-            step_results (Dict[str, torch.Tensor]): Results from a test step.
-        """
         self.test_metrics(
-            step_results["scores"],
-            step_results["labels"],
-            indexes=step_results["q_ids"],
+            self(model_batch).flatten(),
+            labels,
+            indexes=q_ids,
         )
 
-    def test_epoch_end(self, test_results: Iterable[Dict[str, torch.Tensor]]) -> None:
-        """Compute test metrics.
-
-        Args:
-            test_results (Iterable[Dict[str, torch.Tensor]]): Results of the test steps.
-        """
-        for metric, value in self.test_metrics.compute().items():
-            self.log(metric, value, sync_dist=True)
+    def on_test_epoch_end(self) -> None:
+        """Compute and log test metrics."""
+        self.log_dict(self.test_metrics.compute(), sync_dist=True)
         self.test_metrics.reset()
 
     def predict_step(

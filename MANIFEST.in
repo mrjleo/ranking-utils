@@ -1,2 +1,1 @@
-graft ranking_utils
-global-exclude *.py[cod]
+include ranking_utils/datasets/splits/*
