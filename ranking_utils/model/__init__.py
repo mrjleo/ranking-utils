@@ -56,7 +56,7 @@ class Ranker(LightningModule):
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         margin: float = 1.0,
     ) -> None:
-        """Constructor.
+        """Instantiate a ranker.
 
         Args:
             training_mode (TrainingMode, optional): How to train the model. Defaults to TrainingMode.POINTWISE.

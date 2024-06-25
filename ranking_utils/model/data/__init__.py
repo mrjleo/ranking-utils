@@ -31,29 +31,31 @@ TrainingInputs = Union[
 ]
 
 
-def subset_dataset(dataset: Dataset, subset: Union[int, float, None]) -> Dataset:
-    """Subsets the dataset
+def subset_dataset(dataset: Dataset, size: Union[int, float, None]) -> Dataset:
+    """Create a subset of a PyTorch dataset.
+
+    The subset size may be given either as an absolute number of instances (int),
+    a fraction of the data (float), or None to return the entire dataset.
 
     Args:
-        dataset (Dataset): the dataset that should be subsetted
-        subset (Union[int, float, None]): specifies how the data is subset. Passing None will not performing any
-            subsetting. Passing an int will limit the dataset to its first `subset` entries and passing a float will
-            limit it to the first `|dataset|*subset` entries.
+        dataset (Dataset): The dataset to create the subset of.
+        size (Union[int, float, None]): Determines the subset size.
 
     Returns:
-        Dataset: The subsetted dataset
+        Dataset: The subset.
     """
-    if subset is None:
+    if size is None:
         return dataset
-    elif isinstance(subset, int):
-        indices = range(subset)
-    elif isinstance(subset, float):
-        indices = range(int(len(dataset) * subset))
+    elif isinstance(size, int):
+        indices = range(size)
+    elif isinstance(size, float):
+        indices = range(int(len(dataset) * size))
     return Subset(dataset, indices)
 
 
 class DataProcessor(abc.ABC):
     """Abstract base class for model-specific data processors.
+
     Used within data modules to create model inputs and batches.
     """
 
@@ -87,7 +89,7 @@ class TrainingDataset(Dataset, abc.ABC):
     """PyTorch dataset for training of ranking models."""
 
     def __init__(self, data_processor: DataProcessor, mode: TrainingMode) -> None:
-        """Constructor.
+        """Instantiate a training dataset.
 
         Args:
             data_processor (DataProcessor): A model-specific data processor.
@@ -244,7 +246,7 @@ class ValTestDataset(Dataset, abc.ABC):
     """PyTorch dataset for validation and testing of ranking models."""
 
     def __init__(self, data_processor: DataProcessor) -> None:
-        """Constructor.
+        """Instantiate a validation/testing dataset.
 
         Args:
             data_processor (DataProcessor): A model-specific data processor.
@@ -313,7 +315,7 @@ class PredictionDataset(Dataset, abc.ABC):
     """PyTorch dataset for prediction using ranking models."""
 
     def __init__(self, data_processor: DataProcessor) -> None:
-        """Constructor.
+        """Instantiate a prediction dataset.
 
         Args:
             data_processor (DataProcessor): A model-specific data processor.

@@ -29,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class H5TrainingDataset(TrainingDataset):
-    """Training dataset for pre-processed data (h5)."""
+    """Training dataset for pre-processed data (HDF5)."""
 
     def __init__(
         self,
@@ -38,7 +38,7 @@ class H5TrainingDataset(TrainingDataset):
         data_processor: DataProcessor,
         mode: TrainingMode,
     ) -> None:
-        """Constructor.
+        """Instantiate an HDF5 training dataset.
 
         Args:
             data_file (Path): File that contains the corpus (.h5).
@@ -99,12 +99,12 @@ class H5TrainingDataset(TrainingDataset):
 
 
 class H5ValTestDataset(ValTestDataset):
-    """Validation and testing dataset for pre-processed data (hdf5)."""
+    """Validation and testing dataset for pre-processed data (HDF5)."""
 
     def __init__(
         self, data_file: Path, val_test_file: Path, data_processor: DataProcessor
     ) -> None:
-        """Constructor.
+        """Instantiate an HDF5 validation/testing dataset.
 
         Args:
             data_file (Path): File that contains the corpus (.h5).
@@ -131,8 +131,9 @@ class H5ValTestDataset(ValTestDataset):
 
 
 class H5PredictionDataset(PredictionDataset):
-    """Prediction dataset for pre-processed data (H5).
-    Supports test sets in H5 format and TREC runfiles in TSV format.
+    """Prediction dataset for pre-processed data (HDF5).
+
+    Supports test sets in HDF5 format and TREC runfiles in TSV format.
     """
 
     def __init__(
@@ -142,7 +143,7 @@ class H5PredictionDataset(PredictionDataset):
         pred_file_h5: Union[Path, str] = None,
         pred_file_trec: Union[Path, str] = None,
     ) -> None:
-        """Constructor. Exactly one prediction file must be provided.
+        """Instantiate an HDF5 prediction dataset. Exactly one prediction file must be provided.
 
         Args:
             data_processor (DataProcessor): A model-specific data processor.
@@ -234,7 +235,7 @@ class H5PredictionDataset(PredictionDataset):
 
 
 class H5DataModule(LightningDataModule):
-    """Data module for H5-based datasets."""
+    """Data module for HDF5-based datasets."""
 
     def __init__(
         self,
@@ -244,11 +245,15 @@ class H5DataModule(LightningDataModule):
         batch_size: int,
         training_mode: TrainingMode = TrainingMode.POINTWISE,
         num_workers: int = 16,
-        limit_train_set: Union[int, float, None] = None,
-        limit_val_set: Union[int, float, None] = None,
-        limit_test_set: Union[int, float, None] = None,
+        limit_train_set: Union[int, float] = None,
+        limit_val_set: Union[int, float] = None,
+        limit_test_set: Union[int, float] = None,
     ) -> None:
-        """Constructor.
+        """Instantiate an HDF5 data module.
+
+        The options `limit_train_set`, `limit_val_set`, and `limit_test_set` allow for the usage of a subset
+        of the data. This can be either an absolute number of instances (int) or a fraction of the data (float).
+        The corresponding instances are taken from the beginning of the original dataset.
 
         Args:
             data_processor (DataProcessor): Model-specific data processor.
@@ -257,14 +262,9 @@ class H5DataModule(LightningDataModule):
             batch_size (int): The batch size to use.
             training_mode (TrainingMode, optional): The training mode to use. Defaults to TrainingMode.POINTWISE.
             num_workers (int, optional): The number of data loader workers. Defaults to 16.
-            limit_train_set (Union[int, float], optional): loads only a subset of the training set. If an integer is
-                passed, it indicates that only the first `limit_train_set` entries in the training set should be used.
-                If a float is parsed, it indicates that only the first `|train_set|*limit_train_set` entries in the
-                training set should be used. E.g., limit_train_set=100 indicates to train on 100 dataset entries (or
-                less if the dataset does not have enough entries), whereas limit_train_set=.5 indicates to train on 50%
-                of the dataset. Passing None will train on the entire dataset (this is the default).
-            limit_val_set (Union[int, float], optional): see limit_train_set for more information.
-            limit_test_set (Union[int, float], optional): see limit_train_set for more information.
+            limit_train_set (Union[int, float], optional): Use only a subset of the training data. Defaults to None.
+            limit_val_set (Union[int, float], optional): Use only a subset of the validation data. Defaults to None.
+            limit_test_set (Union[int, float], optional): Use only a subset of the testing data. Defaults to None.
         """
         super().__init__()
 
@@ -290,10 +290,10 @@ class H5DataModule(LightningDataModule):
         self.limit_test_set = limit_test_set
 
     def train_dataloader(self) -> DataLoader:
-        """Return a training DataLoader.
+        """Return a training data loader.
 
         Returns:
-            DataLoader: The DataLoader.
+            DataLoader: The data loader.
         """
         ds = H5TrainingDataset(
             self.data_file,
@@ -311,10 +311,10 @@ class H5DataModule(LightningDataModule):
         )
 
     def val_dataloader(self) -> Optional[DataLoader]:
-        """Return a validation DataLoader if the validation set exists.
+        """Return a validation data loader if the validation set exists.
 
         Returns:
-            Optional[DataLoader]: The DataLoader, or None if there is no validation set.
+            Optional[DataLoader]: The data loader (or None if there is no validation set).
         """
         if not self.val_file.is_file():
             return None
@@ -330,10 +330,10 @@ class H5DataModule(LightningDataModule):
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
-        """Return a test DataLoader if the test set exists.
+        """Return a test data loader if the test set exists.
 
         Returns:
-            Optional[DataLoader]: The DataLoader, or None if there is no test dataset.
+            Optional[DataLoader]: The data loader (or None if there is no test set).
         """
         if not self.test_file.is_file():
             return None

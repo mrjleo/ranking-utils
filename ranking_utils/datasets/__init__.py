@@ -24,7 +24,7 @@ class TrainingSet(abc.ABC):
         num_instances_per_positive: int,
         balance_queries: bool,
     ) -> None:
-        """Constructor.
+        """Instantiate a training set.
 
         Args:
             train_ids (Set[int]): Training set query IDs.
@@ -185,7 +185,7 @@ class PointwiseTrainingSet(TrainingSet):
         balance_queries: bool,
         balance_labels: bool,
     ) -> None:
-        """Constructor.
+        """Instantiate a pairwise training set.
 
         Args:
             train_ids (Set[int]): Training set query IDs.
@@ -377,7 +377,7 @@ class ValTestSet(object):
         qrels: Dict[int, Dict[int, int]],
         pools: Dict[int, Set[int]],
     ) -> None:
-        """Constructor.
+        """Instantiate a validation/test set.
 
         Args:
             ids (Set[int]): Validation/test set query IDs.
@@ -449,7 +449,7 @@ class Dataset(object):
         qrels: Dict[str, Dict[str, int]],
         pools: Dict[str, Set[str]],
     ) -> None:
-        """Constructor.
+        """Instantiate a dataset.
 
         Args:
             queries (Dict[str, str]): Query IDs mapped to queries.
@@ -647,7 +647,7 @@ class Dataset(object):
                 ds["orig_doc_ids"][doc_id] = self.orig_doc_ids[doc_id]
 
     def save_qrels(self, dest: Path) -> None:
-        """Save the QRels as a tab-separated file to be used with TREC-eval.
+        """Save the QRels as a tab-separated file to be used with TREC eval.
         Positive values indicate relevant documents. Zero or negative values indicate irrelevant documents.
 
         Args:
