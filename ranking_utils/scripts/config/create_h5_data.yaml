@@ -5,7 +5,6 @@ defaults:
 random_seed: 123
 
 training:
-
   # Number of training instances for each relevant document.
   num_instances_per_positive: 1
 
@@ -17,3 +16,7 @@ training:
 
   # Number of negative documents to contrast each positive (contrastive).
   num_negatives: 8
+
+hydra:
+  job:
+    chdir: True
