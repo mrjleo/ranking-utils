@@ -3,12 +3,8 @@ from typing import Any, Dict, List, Tuple, Union
 
 import torch
 from pytorch_lightning import LightningModule
-from torchmetrics import (
-    MetricCollection,
-    RetrievalMAP,
-    RetrievalMRR,
-    RetrievalNormalizedDCG,
-)
+from torchmetrics import MetricCollection
+from torchmetrics.retrieval import RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG
 
 PointwiseTrainingInstance = Tuple[str, str, int]
 PairwiseTrainingInstance = Tuple[str, str, str]
