@@ -14,7 +14,7 @@ python -m pip install .
 
 ### Dataset Pre-Processing
 
-The dataset pre-processing script reads a dataset and creates training, dev and test sets (hdf5 format) that can be used by the ranking models. Run the script as follows to see available options:
+The dataset pre-processing script reads a dataset and creates training, dev and test sets (HDF5 format) that can be used by the ranking models. Run the script as follows to see available options:
 
 ```
 python -m ranking_utils.scripts.create_h5_data
@@ -95,6 +95,8 @@ After each epoch, the ranker automatically computes the following ranking metric
 - `val_RetrievalMRR`
 - `val_RetrievalNormalizedDCG`
 
+These can be used in combination with callbacks, e.g. [early stopping](https://lightning.ai/docs/pytorch/latest/common/early_stopping.html#earlystopping-callback).
+
 #### Testing
 
 Similarly to validation, the following metrics can be computed on the test set (using [PyTorch Lightning's testing functionality](https://lightning.ai/docs/pytorch/stable/common/trainer.html#testing)):
@@ -102,8 +104,6 @@ Similarly to validation, the following metrics can be computed on the test set (
 - `test_RetrievalMAP`
 - `test_RetrievalMRR`
 - `test_RetrievalNormalizedDCG`
-
-These can be used in combination with callbacks, e.g. [early stopping](https://pytorch-lightning.readthedocs.io/en/latest/api/pytorch_lightning.callbacks.EarlyStopping.html?highlight=earlystopping).
 
 #### Examples
 
