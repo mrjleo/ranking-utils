@@ -1,1 +1,2 @@
 include ranking_utils/datasets/splits/*
+include ranking_utils/scripts/config/**/*.yaml
