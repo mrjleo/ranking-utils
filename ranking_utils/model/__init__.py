@@ -69,11 +69,11 @@ class Ranker(LightningModule):
 
         metrics = [RetrievalMAP, RetrievalMRR, RetrievalNormalizedDCG]
         self.val_metrics = MetricCollection(
-            [M(compute_on_cpu=True) for M in metrics],
+            [M() for M in metrics],
             prefix="val_",
         )
         self.test_metrics = MetricCollection(
-            [M(compute_on_cpu=True) for M in metrics],
+            [M() for M in metrics],
             prefix="test_",
         )
 
