@@ -145,7 +145,7 @@ class Ranker(LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         """Compute and log validation metrics."""
-        self.log_dict(self.val_metrics.compute(), sync_dist=True)
+        self.log_dict(self.val_metrics.compute())
         self.val_metrics.reset()
 
     def test_step(self, batch: ValTestBatch, batch_idx: int) -> None:
@@ -175,7 +175,7 @@ class Ranker(LightningModule):
 
     def on_test_epoch_end(self) -> None:
         """Compute and log test metrics."""
-        self.log_dict(self.test_metrics.compute(), sync_dist=True)
+        self.log_dict(self.test_metrics.compute())
         self.test_metrics.reset()
 
     def predict_step(
